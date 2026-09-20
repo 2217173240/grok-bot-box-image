@@ -1,0 +1,43 @@
+#!/bin/bash
+# 开副屏。契约见《确定-计算环境-契约》§3.1。
+#
+#   N≥2
+#   幂等：屏活着且 token 是自己的 → 0
+#   屏活着但 token 是别人的 → 退出 75，不改绑。主机应拆掉重建，
+#   否则新 Bot 会开到旧 Bot 的浏览器上。
+#
+# 本脚本不起浏览器。浏览器按需由 box-chrome 另起（门禁 G1 的语义）。
+set -u
+source /usr/local/bin/box-common.sh
+
+N=${1:?用法: start-window <显示号 N≥2> [token]}
+TOKEN=${2:-}
+
+if [ "$N" -le "$PRIMARY_DISPLAY" ]; then
+  log "拒绝：start-window 只接受 N≥2（:1 是共享主屏）"; exit 1
+fi
+
+mkdir -p "$TOKEN_DIR"
+OWNER_FILE="$TOKEN_DIR/$N"
+
+alive() { [ -e "/tmp/.X11-unix/X$N" ] && DISPLAY=":$N" xdpyinfo >/dev/null 2>&1; }
+
+if alive; then
+  cur=$(cat "$OWNER_FILE" 2>/dev/null || true)
+  if [ -n "$cur" ] && [ "$cur" = "$TOKEN" ]; then
+    log ":$N 已在跑且 token 就是自己的，幂等成功"; exit 0
+  fi
+  # 空文件、没有文件、或别人的 token —— 一律 75，且绝不改绑
+  log ":$N 活着但 token 不是自己的，退出 75（主机应 stop-window 后重开）"
+  exit 75
+fi
+
+start-desktop.sh "$N" || exit 1
+
+# 先写 owner，再对外可用
+if [ -n "$TOKEN" ]; then
+  umask 077
+  printf '%s' "$TOKEN" > "$OWNER_FILE"
+fi
+
+log ":$N 就绪，owner 已写入"

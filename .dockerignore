@@ -1,0 +1,8 @@
+.git
+node_modules
+**/node_modules
+docs
+mcp-server
+cli
+*.log
+.DS_Store

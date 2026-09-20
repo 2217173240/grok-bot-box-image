@@ -1,0 +1,60 @@
+#!/bin/bash
+# 关副屏。顺序不能改（《确定-计算环境-契约》§3.2）：
+#   1. 先删 owner 文件 —— 路由器立刻不再转发，旧 token 无法重放
+#   2. 再从监督表摘掉整组 —— 否则组件会被拉起来
+#   3. 最后按端口上的精确 PID 杀 —— 不按进程名杀，否则会误伤别的屏
+#
+# N≤1 → 退出码 0 的空操作，不动 :1。
+set -u
+source /usr/local/bin/box-common.sh
+
+N=${1:?用法: stop-window <显示号>}
+
+if [ "$N" -le "$PRIMARY_DISPLAY" ]; then
+  log "stop-window $N 是空操作，:1 是共享主屏，不拆"; exit 0
+fi
+
+# 1 先删 owner 与画面登记
+rm -f "$TOKEN_DIR/$N" "$NOVNC_TOKEN_DIR/$N"
+
+# 2 摘监督组。**先把登记的 pid 读出来再删目录** —— 删掉就再也不知道该杀谁了。
+#
+# 这里以前只按 pkill -f 的 pattern 杀，漏掉任何没写进 pattern 的组件（坞就是这么漏的），
+# 而且 xfwm4 / picom 从 start-desktop 继承 DISPLAY、环境里根本匹配不到，等于一直没被杀干净。
+# 监督表里每个组件都登记了真 pid（start-desktop.sh 的 register），用它才是准的。
+# 这也是本项目「探活和杀进程都别信进程名」那条纪律的同一面。
+registered_pids=""
+for f in "$SUPERVISE_DIR/d$N"/*.json; do
+  [ -e "$f" ] || continue
+  p=$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$f")
+  [ -n "$p" ] && registered_pids="$registered_pids $p"
+done
+rm -rf "$SUPERVISE_DIR/d$N"
+
+# 3 按端口精确杀
+for port in "$(vnc_port "$N")" "$(cdp_port "$N")" "$(exec_port "$N")"; do
+  pid=$(pid_on_port "$port")
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null
+done
+
+# 4 按监督表登记的 pid 杀掉剩下的桌面组件（xfwm4 / picom / plank / Xvfb …）
+for p in $registered_pids; do
+  kill "$p" 2>/dev/null
+done
+
+# 5 Chromium 不在监督表里（它由 box-chrome 按需起，不属于桌面栈），
+# 按 user-data-dir 精确匹配 —— 那个路径带屏号，不会误伤别的屏
+pkill -f -- "--user-data-dir=$(profile_dir "$N")" 2>/dev/null
+
+sleep 1
+# 兜底：Xvfb 若还活着，按「Xvfb :N 」匹配（带尾空格，避免 :1 匹配到 :10）
+pkill -f "Xvfb :$N " 2>/dev/null
+
+# 清掉该屏的 X socket 残留，避免下次开屏时 Xvfb 认为显示已被占用
+rm -f "/tmp/.X11-unix/X$N"
+# 该屏的运行时目录（会话总线的 socket）与坞的每屏状态目录，都随屏生死。
+# 总线守护进程本身已经在第 4 步按监督表登记的 pid 杀掉了，这里只清 socket 文件 ——
+# 留着的话下次 dbus-daemon 会因为地址已被占用而起不来。
+rm -rf "$(run_dir "$N")" "$(plank_conf_dir "$N")" "$(plank_data_dir "$N")"
+
+log ":$N 已拆除"

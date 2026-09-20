@@ -1,0 +1,42 @@
+#!/bin/bash
+# 给某一路桌面的坞铺三个图标：Chrome、文件管理、终端。
+#
+# 图标集照《确定-客户端界面路径》「底栏坞三个图标：Chrome、文件管理、终端」。
+# 观察值里坞图标每屏不同（另一块屏是 Chrome、系统监视器、终端），我们统一成这一套，
+# 不复刻那个差异 —— 规格 §4.3 写明了这个取舍。
+#
+# plank 读 **$XDG_CONFIG_HOME**/plank/dock1/launchers/*.dockitem，每个是一行
+# Launcher=file://… 指向 .desktop 文件。这里只在文件不存在时写，人在屏上把图标拖走了
+# 就不要再塞回去。
+#
+# 别写成 XDG_DATA_HOME —— plank 的 launchers 是配置不是数据，实测它只读 CONFIG。
+# 写错目录不会报错：plank 找不到就自己生成一套默认项，屏上照样有图标，
+# 只是不是我们铺的那套。见 start-desktop.sh 第 5 步的注释。
+set -u
+source /usr/local/bin/box-common.sh
+
+N=${1:?用法: seed-dock <显示号>}
+DIR="${XDG_CONFIG_HOME:-$(plank_conf_dir "$N")}/plank/dock1/launchers"
+mkdir -p "$DIR"
+
+# 浏览器的 .desktop 在不同 Debian 版本里叫法不一，按存在与否挑一个。
+# 挑不到就跳过这一个图标，不让整个坞起不来 —— 坞是画面装饰，不该阻断桌面就绪。
+chromium_desktop=""
+for c in chromium chromium-browser google-chrome; do
+  if [ -f "/usr/share/applications/$c.desktop" ]; then chromium_desktop="$c.desktop"; break; fi
+done
+
+seed() {
+  local desktop=$1 item=$2
+  [ -z "$desktop" ] && return 0
+  [ -f "/usr/share/applications/$desktop" ] || return 0
+  [ -e "$DIR/$item.dockitem" ] && return 0
+  cat > "$DIR/$item.dockitem" <<EOF
+[PlankDockItemPreferences]
+Launcher=file:///usr/share/applications/$desktop
+EOF
+}
+
+seed "$chromium_desktop"       01-browser
+seed "thunar.desktop"          02-files
+seed "xfce4-terminal.desktop"  03-terminal

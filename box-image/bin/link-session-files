@@ -1,0 +1,34 @@
+#!/bin/bash
+# 登录态磁盘层：把副屏的三份 SQLite 链到主库，让新开的浏览器读到同一份登录。
+#
+# 只链这三份。Local Storage / IndexedDB 的 leveldb 不能链 —— 那把锁是进程独占的。
+# 实测主库 Cookies / Login Data 的 journal_mode=delete（回滚日志，不是 WAL），
+# 所以多进程锁同一个 inode 是安全的，也不需要额外链 -wal / -shm。
+set -u
+source /usr/local/bin/box-common.sh
+
+N=${1:?用法: link-session-files <显示号>}
+[ "$N" -eq "$PRIMARY_DISPLAY" ] && exit 0   # 主屏就是主库本身
+
+DEFAULT="$(profile_dir "$N")/Default"
+
+# 副屏的 Default 必须是真目录。做成指向主库的目录级符号链接，
+# 清理副屏时会连主库一起删掉 —— 全机登录态就没了。
+if [ -L "$DEFAULT" ]; then
+  log "拒绝：$DEFAULT 是符号链接，必须是真目录"; exit 1
+fi
+mkdir -p "$DEFAULT" "$SESSION_STORE"
+
+for f in "Cookies" "Login Data" "Login Data For Account"; do
+  src="$SESSION_STORE/$f"
+  dst="$DEFAULT/$f"
+  [ -e "$src" ] || sqlite3 "$src" "" 2>/dev/null   # 主库还没有就先造个空的
+  # 已经是指向主库的正确链接就不动，避免扰正在跑的浏览器
+  if [ -L "$dst" ] && [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]; then
+    continue
+  fi
+  # 只删链接或普通文件，不 rm -rf
+  [ -L "$dst" ] && rm -f "$dst"
+  [ -f "$dst" ] && rm -f "$dst"
+  ln -s "$src" "$dst"
+done

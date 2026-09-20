@@ -1,0 +1,17 @@
+{
+  "name": "box-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "容器内窗口服务 :18765 —— 窗口表、owner token、屏状态机、页面驱动、桌面截图",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright-core": "1.62.1"
+  }
+}

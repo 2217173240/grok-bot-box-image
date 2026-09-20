@@ -1,0 +1,37 @@
+#!/bin/bash
+# 容器入口。只把主屏和整机守护拉起来。
+#
+# 浏览器不在这里起 —— 需要时再开，避免和用户目录锁抢跑。门禁 G1 就是查这个。
+set -u
+source /usr/local/bin/box-common.sh
+
+log "启动 mac-bot 计算环境"
+
+# 休眠唤醒会复用可写层，旧的 X 锁还在，Xvfb 会认为显示已被占用。先删锁再起。
+rm -f /tmp/.X11-unix/X* /tmp/.X*-lock 2>/dev/null
+
+mkdir -p "$TOKEN_DIR" "$NOVNC_TOKEN_DIR" "$SUPERVISE_DIR" "$SESSION_STORE" /home/box/sand-data
+
+# 主屏
+start-desktop.sh "$PRIMARY_DISPLAY" || exit 1
+
+# 副屏画面共用入口：只读 token 目录，屏再多端口表不变
+websockify --web=/usr/share/novnc/ \
+  --token-plugin=TokenFile --token-source="$NOVNC_TOKEN_DIR" \
+  "$NOVNC_FORKS" >/tmp/novnc-forks.log 2>&1 &
+
+# 窗口路由器
+node /usr/local/bin/sand-window-router.mjs >/tmp/router.log 2>&1 &
+
+# 会话同步（只补缺）
+node /usr/local/bin/session-sync.mjs >/tmp/sand-session-sync.log 2>&1 &
+
+# 窗口服务：唯一权威。听 18765，由 Mac 侧只 publish 到 127.0.0.1。
+(cd /opt/box-service && node server.mjs >/tmp/box-service.log 2>&1) &
+wait_for 30 curl -sf http://127.0.0.1:18765/v1/screens \
+  || log "警告：窗口服务没起来，看 /tmp/box-service.log"
+
+log "就绪：主屏 :$PRIMARY_DISPLAY，画面 $NOVNC_PRIMARY/$NOVNC_FORKS，路由器 $ROUTER_PORT，窗口服务 18765"
+
+# 前台撑住容器寿命
+tail -f /dev/null

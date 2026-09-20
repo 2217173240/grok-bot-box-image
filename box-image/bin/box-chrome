@@ -1,0 +1,67 @@
+#!/bin/bash
+# 按 DISPLAY 派生用户目录和调试口，起该屏的浏览器。主屏副屏同一个包装。
+#
+# 不带自动化测试类开关（--enable-automation / --test-type）：那些是反爬会打分的标记。
+# 页面驱动连的是这只已开浏览器的调试口，不需要它们。
+set -u
+source /usr/local/bin/box-common.sh
+
+N=${DISPLAY#:}; N=${N%%.*}
+[ -z "$N" ] && { echo "没有 DISPLAY" >&2; exit 1; }
+
+PROFILE=$(profile_dir "$N")
+CDP=$(cdp_port "$N")
+LOCK="/tmp/box-chrome-$N.lock"
+
+# 文件锁，避免两路同时起同一只
+exec 9>"$LOCK"
+flock -w 30 9 || { echo ":$N 抢锁超时" >&2; exit 1; }
+
+if curl -sf "http://127.0.0.1:$CDP/json/version" >/dev/null 2>&1; then
+  log ":$N 浏览器已在跑（$CDP）"; exit 0
+fi
+
+mkdir -p "$PROFILE/Default"
+link-session-files "$N" || exit 1
+
+# 沙箱：默认 docker seccomp 下 Chromium 沙箱起不来。容器应以
+# --security-opt seccomp=unconfined 运行，此时沙箱可用（实测）。
+# 若确实起不来才退化到 --no-sandbox —— 那会让恶意页面拿到整个容器，包括全机 cookie 库。
+SANDBOX_ARGS=()
+[ "${BOX_NO_SANDBOX:-0}" = "1" ] && SANDBOX_ARGS=(--no-sandbox)
+
+# 出网代理（规格 §4.2）。默认不设 = 直连，行为和以前一模一样。
+# 设了就整只浏览器走它 —— 部分网络下直连会被投毒（实测 zh.wikipedia.org 返回
+# ERR_CERT_COMMON_NAME_INVALID、google.com 直接不通）。
+#
+# 用 HTTP 代理口而不是 SOCKS：Chromium 走 CONNECT 时 DNS 在远端解析，正好治投毒。
+# 不用配 --proxy-bypass-list：Chromium 默认就绕开回环，调试口 9222+N、窗口服务
+# 和本地测试页都不受影响 —— 这条要是错了，页面驱动会连不上自己的浏览器。
+PROXY_ARGS=()
+[ -n "${MAC_BOT_PROXY:-}" ] && PROXY_ARGS=(--proxy-server="$MAC_BOT_PROXY")
+
+# --hide-crash-restore-bubble：stop-window 按 PID 精确杀（规格 §4 的关屏顺序要求如此），
+# Chromium 于是每次都认为自己没干净退出，下次启动顶一个"Restore pages?"气泡挡住页面右上角。
+# 它是浏览器 UI 不在页面 DOM 里，agent 的手不会误点，但 screenshot 的眼睛会被挡。
+# 见《可行性实测》坑 9。
+DISPLAY=":$N" chromium \
+  --user-data-dir="$PROFILE" \
+  --remote-debugging-port="$CDP" \
+  --remote-debugging-address=127.0.0.1 \
+  --password-store=basic \
+  --no-first-run --no-default-browser-check \
+  --disable-dev-shm-usage \
+  --class=box-chrome \
+  --disable-features=ChromeWhatsNewUI \
+  --hide-crash-restore-bubble \
+  "${SANDBOX_ARGS[@]}" \
+  "${PROXY_ARGS[@]}" \
+  --new-window about:blank \
+  >"/tmp/chromium:$N.log" 2>&1 &
+
+# 就绪 = 本机调试口的版本接口能通
+if wait_for 30 curl -sf "http://127.0.0.1:$CDP/json/version"; then
+  log ":$N 浏览器就绪（$CDP）"
+else
+  log ":$N 浏览器起不来，日志 /tmp/chromium:$N.log"; exit 1
+fi
