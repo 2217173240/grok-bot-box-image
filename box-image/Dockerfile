@@ -4,7 +4,7 @@ FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
       # 桌面栈。**没有合成器**：as-built §3 那一步跑 picom，我们实测后砍掉了，
       # 理由见规格 §4.4（坞的 ARGB 窗口在这套无 GPU 虚拟显示上混不动，整条渲染成黑）。
       # 不留在镜像里，是为了让「装了什么」和「跑了什么」始终对得上。
@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 版本不用挑：Debian trixie 里现成的就正好对上被观察机器那台的清单 ——
 # Go 1.24、Rust 1.85、gh 2.46、Python 3.13、gcc 14。不去 rustup / go.dev 拉 tarball，
 # apt 版可复现、跟着安全更新走，也省掉一大堆构建期下载。
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
       # 基础：观察值那台自带的一套
       sudo wget git build-essential perl less unzip \
       # Python：镜像里的 python3 已是 3.13，补 pip 和 venv
