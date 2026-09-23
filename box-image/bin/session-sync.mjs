@@ -210,6 +210,8 @@ async function syncLocalStorage(live) {
     if (!await mayMutate(p.display)) continue;
     const rk = `${p.browser}|${p.origin}`;
     const n = reloads.get(rk) ?? 0;
+    // 发送后断连时无法确认页面是否已刷新，先消耗本次预算。
+    if (n < RELOAD_CAP && p.entries.length === 0) reloads.set(rk, n + 1);
     const result = await evalIn(p.ws, writeLs(p.origin, missing, n < RELOAD_CAP), () => mayMutate(p.display));
     if (result?.error) throw new Error(result.error);
     const wrote = result?.wrote ?? 0;
@@ -256,7 +258,9 @@ async function syncCookies(live) {
 
   let mirrored = 0;
   for (const j of jars) {
-    const have = new Set(j.cookies.map(key));
+    if (!await mayMutate(j.n)) continue;
+    const [latest] = await cdp(j.ws, [{ method: 'Storage.getCookies', params: {} }]);
+    const have = new Set((latest?.cookies ?? []).map(key));
     const missing = [...union.values()].filter((c) => !have.has(key(c)));
     if (!missing.length) continue;
     if (!await mayMutate(j.n)) continue;
