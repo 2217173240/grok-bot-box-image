@@ -28,12 +28,12 @@ git clone https://github.com/2217173240/grok-bot-box-image.git
 cd grok-bot-box-image
 colima start --profile grokbot --cpu 4 --memory 6 --disk 30 --arch aarch64
 export DOCKER_HOST="unix://$HOME/.colima/grokbot/docker.sock"
-docker build --platform linux/arm64 -f box-image/Dockerfile -t grok-box-base:arm64 .
+docker build --platform linux/arm64 --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" -f box-image/Dockerfile -t grok-box-base:arm64 .
 ```
 
 要求 arm64 主机（Apple Silicon 原生，无模拟）；构建从公网拉取 Debian 软件包、
 GitHub release（bun/uv，SHA 校验）、npm registry（Playwright 指定版本，ws 使用 `8.x` 范围）。
-Debian 基础标签与软件包来源会更新，同一份源码重新构建可能生成不同的镜像身份。
+Debian 基础镜像使用固定 digest；APT 软件包来源会更新，同一份源码重新构建可能生成不同的镜像身份。
 约 20-40 分钟。已有 `grokbot` profile 时直接使用它；构建不会自动修改主仓库固定的
 基础镜像身份。更新主仓库的 `docker/base-image.json` 前，需核对新镜像内容与平台，
 重新构建执行镜像，并完成主仓库的容器门禁和桌面验收。
@@ -46,3 +46,7 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 当前主仓库的薄层也会建立相同的主屏 profile 链接；新基础镜像进入主仓库固定镜像清单前，
 正在使用的执行镜像保持原状。主仓库以 `box-init-exec` 启动本地模式，基础镜像的
 `box-init` 与 `box-service` 仍服务于独立运行基础镜像的路径。
+
+本地模式通过 `SAND_SESSION_SYNC_STATE_FILE` 读取 host 发布的忙态。状态超过十五秒、格式损坏、文件缺失或存在人工接管文件时暂停同步写入；全部 agent 空闲后再补齐数据。独立基础镜像继续从 `box-service` 查询状态。同步轮次串行执行，页内写入复查 origin，空页初始化每个浏览器实例与 origin 最多触发两次刷新。
+
+镜像 label 记录源仓库及 `SOURCE_REVISION`。用于主仓库的正式构建需要干净的 Git 工作区，主仓库的基础镜像清单同时记录镜像 digest 与源码提交。真实双屏同步验收使用 `box-image/bin/sync-probe.mjs`，必须在没有生产数据、没有其他同步守护的隔离容器运行。

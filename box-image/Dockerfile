@@ -1,6 +1,6 @@
 # mac-bot 计算环境
 # 规格见 docs/grok_bot/规格-MVP-v1.md，实测依据见 规格-MVP-v1-可行性实测.md
-FROM debian:trixie
+FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -184,3 +184,7 @@ USER box
 
 # 入口只把主屏拉起来，不开浏览器（门禁 G1）
 CMD ["/usr/local/bin/box-init"]
+
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/2217173240/grok-bot-box-image" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"

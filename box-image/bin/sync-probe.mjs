@@ -8,11 +8,37 @@
 // 早先的版本在这里自己实现了一遍「只补缺」的合并再断言自己的结果 —— 那样 S3 是假绿的，
 // 把 session-sync.mjs 删掉它照样通过。断言要打到被断言的东西本身。
 import http from 'node:http';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { writeLs } from './session-sync-page.mjs';
 const { default: WebSocket } = await import('/usr/local/lib/node_modules/ws/index.js');
 
 const [, , portA = '9224', portB = '9225'] = process.argv;
 const DOMAIN = '127.0.0.1';
+const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'session-sync-probe-'));
+const stateFile = path.join(testRoot, 'activity.json');
+const handoffFile = path.join(testRoot, '.grokbot/ask-human.json');
+process.on('exit', () => fs.rmSync(testRoot, { recursive: true, force: true }));
+const publish = (state, updatedAt = Date.now()) => {
+  fs.writeFileSync(`${stateFile}.tmp`, JSON.stringify({ version: 1, state, updatedAt, pid: process.pid }));
+  fs.renameSync(`${stateFile}.tmp`, stateFile);
+};
+publish('idle');
+
+// 异步等待子进程，让本进程的真实 HTTP 站点持续响应页面导航。
+const runSync = () => new Promise((resolve, reject) => {
+  const child = spawn(process.execPath, ['/usr/local/bin/session-sync.mjs', '--once'], {
+    env: { ...process.env, SAND_SESSION_SYNC_STATE_FILE: stateFile, SAND_AGENT_WORKSPACE: testRoot },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let stderr = '';
+  const timeout = setTimeout(() => child.kill('SIGKILL'), 30000);
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  child.once('error', (error) => { clearTimeout(timeout); reject(error); });
+  child.once('close', (status) => { clearTimeout(timeout); resolve({ status, stderr }); });
+});
 
 /**
  * 「前置没满足、一条断言都没跑」的退出码。
@@ -34,19 +60,29 @@ const getJson = (port, path) => new Promise((resolve) => {
 });
 
 async function cdp(ws, commands) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const sock = new WebSocket(ws); const out = []; let i = 0;
+    let done = false;
+    const finish = (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sock.terminate();
+      if (error) reject(error); else resolve(out);
+    };
+    const timer = setTimeout(() => finish(new Error('探针 CDP 超时')), 5000);
     const send = () => {
-      if (i >= commands.length) { sock.close(); resolve(out); return; }
+      if (i >= commands.length) { finish(); return; }
       sock.send(JSON.stringify({ id: i + 1, ...commands[i] }));
     };
     sock.on('open', send);
     sock.on('message', (d) => {
       const m = JSON.parse(d);
+      if (m.id === i + 1 && m.error) { finish(new Error(m.error.message)); return; }
       if (m.id === i + 1) { out.push(m.result ?? null); i += 1; send(); }
     });
-    sock.on('error', () => resolve(out));
-    setTimeout(() => { try { sock.close(); } catch {} resolve(out); }, 5000);
+    sock.on('error', finish);
+    sock.on('close', () => { if (!done) finish(new Error('探针 CDP 连接提前关闭')); });
   });
 }
 
@@ -80,8 +116,7 @@ await cdp(b.webSocketDebuggerUrl, [{ method: 'Storage.setCookies',
 // 这个探针以前就是自己 union / filter 一遍再断言自己的结果 —— 于是把 session-sync.mjs
 // 整个删掉 S3 照样绿，等于什么都没测（2026-08-14 code review 查出）。
 // 现在调它的 --once 模式：跑一轮、退出、我们只看它留下的 cookie 罐。
-const sync = spawnSync('node', ['/usr/local/bin/session-sync.mjs', '--once'],
-  { encoding: 'utf8', timeout: 30000 });
+const sync = await runSync();
 if (sync.status !== 0) {
   console.log(`  ✗ S3 session-sync --once 退出码 ${sync.status}：${(sync.stderr ?? '').trim().slice(-200)}`);
   process.exit(1);
@@ -112,10 +147,12 @@ else no('cookie 缺失键没补上');
 
 const loads = new Map(); // display -> 次数
 const server = http.createServer((req, res) => {
+  if (!req.url.startsWith('/p?')) { res.writeHead(204); res.end(); return; }
   const d = new URL(req.url, 'http://127.0.0.1').searchParams.get('d') ?? '?';
   loads.set(d, (loads.get(d) ?? 0) + 1);
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  res.end('<html><head><meta charset="utf-8"><title>s3</title></head><body>s3</body></html>');
+  const clear = new URL(req.url, 'http://127.0.0.1').searchParams.has('clear');
+  res.end(`<html><head><meta charset="utf-8"><title>s3</title>${clear ? '<script>localStorage.clear()</script>' : ''}</head><body>s3</body></html>`);
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const originPort = server.address().port;
@@ -129,6 +166,7 @@ async function pageWs(port) {
 }
 const evalIn = async (ws, expression) => {
   const r = await cdp(ws, [{ method: 'Runtime.evaluate', params: { expression, returnByValue: true } }]);
+  if (r?.[0]?.exceptionDetails) throw new Error(r[0].exceptionDetails.text);
   return r?.[0]?.result?.value ?? null;
 };
 const readLs = (ws) => evalIn(ws, `JSON.stringify(Object.entries(localStorage))`);
@@ -149,7 +187,8 @@ if (!wsA || !wsB) {
   await evalIn(wsB, `localStorage.clear(); localStorage.setItem('shared','B-old'); 1`);
   const beforeLoads = new Map(loads);
 
-  const s1 = spawnSync('node', ['/usr/local/bin/session-sync.mjs', '--once'], { encoding: 'utf8', timeout: 30000 });
+  publish('idle');
+  const s1 = await runSync();
   if (s1.status !== 0) no(`localStorage 局的 session-sync --once 退出码 ${s1.status}`);
   await sleep(500);
 
@@ -167,7 +206,8 @@ if (!wsA || !wsB) {
   await evalIn(wsB, `localStorage.clear(); 1`);
   const midB = loads.get('B') ?? 0;
   const midA = loads.get('A') ?? 0;
-  const s2 = spawnSync('node', ['/usr/local/bin/session-sync.mjs', '--once'], { encoding: 'utf8', timeout: 30000 });
+  publish('idle');
+  const s2 = await runSync();
   if (s2.status !== 0) no(`从无到有局的 session-sync --once 退出码 ${s2.status}`);
   await sleep(1500);
 
@@ -181,6 +221,75 @@ if (!wsA || !wsB) {
   else no('从无到有的页没有重载');
   if ((loads.get('A') ?? 0) === midA) ok('本来就有值的那块屏自始至终没被重载');
   else no('本来就有值的那块屏也被重载了');
+
+  // 每种阻断状态都必须保留空页，恢复新鲜 idle 后仍能补齐并重载。
+  for (const mode of ['busy', 'missing', 'stale', 'future', 'malformed', 'handoff']) {
+    await evalIn(wsB, `localStorage.clear(); 1`);
+    const before = loads.get('B') ?? 0;
+    publish('idle');
+    if (mode === 'busy') publish('busy');
+    if (mode === 'missing') fs.unlinkSync(stateFile);
+    if (mode === 'stale') publish('idle', Date.now() - 20000);
+    if (mode === 'future') publish('idle', Date.now() + 60000);
+    if (mode === 'malformed') fs.writeFileSync(stateFile, '{');
+    if (mode === 'handoff') {
+      fs.mkdirSync(path.dirname(handoffFile), { recursive: true });
+      fs.writeFileSync(handoffFile, '{');
+    }
+    const blocked = await runSync();
+    await sleep(200);
+    if (blocked.status === 0 && await readLs(wsB) === '[]' && (loads.get('B') ?? 0) === before) ok(`${mode} 阻止写入及重载`);
+    else no(`${mode} 未能阻止写入及重载：${blocked.stderr.slice(-200)}`);
+    fs.rmSync(handoffFile, { force: true });
+    publish('idle');
+    const recovered = await runSync();
+    await sleep(500);
+    const recoveredItems = new Map(JSON.parse((await readLs(wsB)) ?? '[]'));
+    if (recovered.status === 0 && recoveredItems.get('onlyA') === '1' && (loads.get('B') ?? 0) > before) ok(`${mode} → idle 后补齐并重载`);
+    else no(`${mode} → idle 后未恢复：${recovered.stderr.slice(-200)}`);
+  }
+
+  // 真导航到另一个 origin，再执行生产使用的表达式，验证旧来源数据没有泄漏。
+  const otherServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<html><body>other origin</body></html>');
+  });
+  await new Promise((resolve) => otherServer.listen(0, '127.0.0.1', resolve));
+  try {
+    await cdp(wsB, [{ method: 'Page.navigate', params: { url: `http://127.0.0.1:${otherServer.address().port}/` } }]);
+    await sleep(500);
+    await evalIn(wsB, `localStorage.clear(); 1`);
+    const guarded = await evalIn(wsB, writeLs(ORIGIN, [['origin-secret', 'seed']], true));
+    if (guarded?.wrote === 0 && await readLs(wsB) === '[]') ok('导航到不同 origin 后生产写入表达式拒绝旧来源数据');
+    else no('导航后旧来源数据写进了错误 origin');
+  } finally { otherServer.close(); }
+
+  // 页面每次加载主动清空，实际常驻守护应只触发两次重载，随后只补值。
+  await cdp(wsB, [{ method: 'Page.navigate', params: { url: `${ORIGIN}/p?d=B&clear=1` } }]);
+  await sleep(500);
+  const capStart = loads.get('B') ?? 0;
+  publish('idle');
+  const heartbeat = setInterval(() => publish('idle'), 3000);
+  const daemon = spawn(process.execPath, ['/usr/local/bin/session-sync.mjs'], {
+    env: { ...process.env, SAND_SESSION_SYNC_STATE_FILE: stateFile, SAND_AGENT_WORKSPACE: testRoot },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let daemonError = null;
+  let daemonStderr = '';
+  daemon.once('error', (error) => { daemonError = error; });
+  daemon.stderr.on('data', (chunk) => { daemonStderr += chunk; });
+  const daemonClosed = new Promise((resolve) => daemon.once('close', resolve));
+  try {
+    await sleep(18000);
+    const reloadCount = (loads.get('B') ?? 0) - capStart;
+    const cappedItems = new Map(JSON.parse((await readLs(wsB)) ?? '[]'));
+    if (!daemonError && daemon.exitCode === null && reloadCount === 2 && cappedItems.get('onlyA') === '1') ok('常驻守护最多重载两次，达到上限后仍可补缺');
+    else no(`常驻重载上限异常：次数=${reloadCount}，错误=${daemonError?.message ?? daemonStderr.slice(-200)}`);
+  } finally {
+    clearInterval(heartbeat);
+    daemon.kill('SIGTERM');
+    await daemonClosed;
+  }
 }
 server.close();
 process.exit(fail ? 1 : 0);
