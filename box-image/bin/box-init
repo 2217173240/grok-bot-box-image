@@ -10,7 +10,10 @@ log "启动 mac-bot 计算环境"
 # 休眠唤醒会复用可写层，旧的 X 锁还在，Xvfb 会认为显示已被占用。先删锁再起。
 rm -f /tmp/.X11-unix/X* /tmp/.X*-lock 2>/dev/null
 
-mkdir -p "$TOKEN_DIR" "$NOVNC_TOKEN_DIR" "$SUPERVISE_DIR" "$SESSION_STORE" /home/box/sand-data
+# 数据卷覆盖镜像层，先建立符号链接目标，再建立 Chromium 的 Default 目录。
+mkdir -p "$TOKEN_DIR" "$NOVNC_TOKEN_DIR" "$SUPERVISE_DIR" /home/box/sand-data/chrome-profile "$SESSION_STORE"
+# 容器重启后，旧 Chromium 的 Singleton 锁指向已经退出的进程。
+rm -f /home/box/sand-data/chrome-profile*/Singleton*
 
 # 主屏
 start-desktop.sh "$PRIMARY_DISPLAY" || exit 1
