@@ -139,11 +139,11 @@ COPY box-service/ /opt/box-service/
 USER box
 WORKDIR /home/box
 
-# workspace 是和 Mac 互通的那个目录（规格 §4.6），由 `mac-bot up` bind mount 进来。
-# 这里建出来只是**兜底**：真跑起来时 bind mount 会把这一层整个盖住，容器内的属主由
-# 宿主机那个目录决定（所以 up.js 要先在 Mac 上 mkdir —— 让 docker 代建的话属主是 root）。
-# 留着它是为了「不挂卷直接 docker run 这个镜像」时目录也在，比如门禁之外的临时排查。
-RUN mkdir -p /home/box/chrome-profile/Default /home/box/sand-data /home/box/workspace
+# 主屏 Chromium profile 住在数据卷中，容器替换后仍保留已完成的登录。
+# box-common.sh 的固定路径保持不变；挂载空卷时由 box-init 建立链接目标。
+# workspace 仍由调用方绑定宿主机目录，这里只提供无挂载时的初始目录。
+RUN mkdir -p /home/box/sand-data/chrome-profile/Default /home/box/workspace \
+    && ln -s /home/box/sand-data/chrome-profile /home/box/chrome-profile
 
 # 用户自己 `go install` / `cargo install` / `pip install --user` 装的东西落在家目录里，
 # 得在 PATH 上。

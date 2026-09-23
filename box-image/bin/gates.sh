@@ -163,6 +163,8 @@ done
 # 那半边归 tests/run-gates.sh 的往返断言（门禁跑在容器内，看不见宿主机）。
 check "工作区目录存在"          "[ -d /home/box/workspace ]"
 check "工作区可写"              "touch /home/box/workspace/.g10-probe && rm -f /home/box/workspace/.g10-probe"
+check "主屏 profile 指向数据目录" "[ -L \"$PRIMARY_PROFILE\" ] && [ \"\$(readlink \"$PRIMARY_PROFILE\")\" = /home/box/sand-data/chrome-profile ]"
+check "主屏 profile 可写"        "touch \"$SESSION_STORE/.g10-profile-probe\" && rm -f \"$SESSION_STORE/.g10-profile-probe\""
 
 echo "=== G11 open_url 目的地闸门（规格 §7.2）==="
 # 闸门是 box-service 里的一个模块，这里把它 import 进来直接问，不经 HTTP ——
