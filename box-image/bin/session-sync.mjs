@@ -14,13 +14,17 @@
 // 实测过页面 target 这条连接和 box-service 的 playwright 可以并存（快照与 act 照常）。
 import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
+import { writeLs } from './session-sync-page.mjs';
 
 const CDP_BASE = 9222;
 const INTERVAL_MS = 5000;
 const WINDOW_SERVICE = 'http://127.0.0.1:18765/v1/screens';
+const STATE_FILE = process.env.SAND_SESSION_SYNC_STATE_FILE;
+const HANDOFF_FILE = path.join(process.env.SAND_AGENT_WORKSPACE || process.env.SAND_WORKSPACE_ROOT || '/workspace', '.grokbot/ask-human.json');
 
 /**
- * 「从无到有」触发的重载，每 (显示号, origin) 最多这么多次 —— **断路器**（规格 §9.3）。
+ * 「从无到有」触发的重载，每 (浏览器实例, origin) 最多这么多次 —— **断路器**（规格 §9.3）。
  *
  * 没有它就是一个自激回路：页面一加载就清掉 localStorage 的站点（不少 SPA 在
  * 登出路径上就这么干），下一轮我们又给它补齐、又判定「从无到有」、又重载 ——
@@ -30,7 +34,7 @@ const WINDOW_SERVICE = 'http://127.0.0.1:18765/v1/screens';
  * 结构上碰不到这条路径（登记见规格 §11.1，S3 不覆盖它）。
  */
 const RELOAD_CAP = 2;
-const reloads = new Map(); // `${display}|${origin}` -> 次数
+const reloads = new Map(); // `${浏览器端点}|${origin}` -> 次数
 
 function displays() {
   try {
@@ -56,22 +60,37 @@ function getJson(port, path) {
 const { default: WebSocket } = await import('/usr/local/lib/node_modules/ws/index.js');
 
 // 极简 CDP 客户端：一条连接发一批命令
-async function cdp(wsUrl, commands) {
-  return new Promise((resolve) => {
+async function cdp(wsUrl, commands, beforeSend) {
+  return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const out = [];
     let i = 0;
-    const send = () => {
-      if (i >= commands.length) { ws.close(); resolve(out); return; }
-      ws.send(JSON.stringify({ id: i + 1, ...commands[i] }));
+    let done = false;
+    const finish = (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      ws.terminate();
+      if (error) reject(error); else resolve(out);
+    };
+    const timer = setTimeout(() => finish(new Error('CDP 超时')), 5000);
+    const send = async () => {
+      if (i >= commands.length) { finish(); return; }
+      try {
+        // 建连期间状态也可能改变，发送变更命令前再检查一次。
+        if (beforeSend && !await beforeSend()) { finish(); return; }
+        if (!done) ws.send(JSON.stringify({ id: i + 1, ...commands[i] }));
+      } catch (error) { finish(error); }
     };
     ws.onopen = send;
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (error) { finish(error); return; }
+      if (msg.id === i + 1 && msg.error) { finish(new Error(msg.error.message)); return; }
       if (msg.id === i + 1) { out.push(msg.result ?? null); i += 1; send(); }
     };
-    ws.onerror = () => resolve(null);
-    setTimeout(() => { try { ws.close(); } catch {} resolve(out); }, 5000);
+    ws.onerror = () => finish(new Error('CDP 连接失败'));
+    ws.onclose = () => { if (!done) finish(new Error('CDP 连接提前关闭')); };
   });
 }
 
@@ -104,6 +123,22 @@ async function screenStates() {
   });
 }
 
+// 主宿主发布的状态必须新鲜且完整；文件缺失或接管期间保守停写。
+async function mayMutate(display) {
+  try { fs.lstatSync(HANDOFF_FILE); return false; }
+  catch (error) { if (error.code !== 'ENOENT') return false; }
+  if (STATE_FILE) {
+    try {
+      const s = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      const age = Date.now() - s.updatedAt;
+      return s.version === 1 && s.state === 'idle' && Number.isInteger(s.pid) && s.pid > 0
+        && Number.isFinite(s.updatedAt) && age >= -1000 && age <= 15000;
+    } catch { return false; }
+  }
+  const states = await screenStates();
+  return states !== null && (states.get(display) === undefined || states.get(display) === 'idle');
+}
+
 // 页内读：origin 和全部 localStorage 键值。不可读（opaque origin、被策略挡住）就回 null，
 // 让调用方跳过这一页，而不是把整轮同步弄崩。
 const READ_LS = `(() => { try {
@@ -122,15 +157,9 @@ const READ_LS = `(() => { try {
  * 因为不变量确实还成立；两道都破 → 恰好那一条红）。断言打的是不变量，不是实现，
  * 这是对的；但下次改这里时要知道：单元层面没有断言盯着这一道。
  */
-const writeLs = (entries) => `(() => { try {
-  const want = ${JSON.stringify(entries)};
-  let n = 0;
-  for (const [k, v] of want) { if (!(k in localStorage)) { localStorage.setItem(k, v); n += 1; } }
-  return n;
-} catch (e) { return 0; } })()`;
-
-async function evalIn(wsUrl, expression) {
-  const r = await cdp(wsUrl, [{ method: 'Runtime.evaluate', params: { expression, returnByValue: true } }]);
+async function evalIn(wsUrl, expression, beforeSend) {
+  const r = await cdp(wsUrl, [{ method: 'Runtime.evaluate', params: { expression, returnByValue: true } }], beforeSend);
+  if (r?.[0]?.exceptionDetails) throw new Error(r[0].exceptionDetails.text);
   return r?.[0]?.result?.value ?? null;
 }
 
@@ -156,7 +185,7 @@ async function syncLocalStorage(live) {
       let listedOrigin = null;
       try { listedOrigin = new URL(t.url).origin; } catch { /* 解析不了就当对不上 */ }
       if (origin !== listedOrigin) continue;
-      pages.push({ display: b.n, ws: t.webSocketDebuggerUrl, origin, entries });
+      pages.push({ display: b.n, browser: b.ws, ws: t.webSocketDebuggerUrl, origin, entries });
     }
   }
   if (pages.length < 2) return;
@@ -169,7 +198,6 @@ async function syncLocalStorage(live) {
     for (const [k, v] of p.entries) if (!u.has(k)) u.set(k, v);
   }
 
-  const states = await screenStates();
   let mirrored = 0;
 
   for (const p of pages) {
@@ -178,32 +206,20 @@ async function syncLocalStorage(live) {
     const missing = [...u.entries()].filter(([k]) => !have.has(k));
     if (!missing.length) continue;
 
-    const wrote = Number(await evalIn(p.ws, writeLs(missing))) || 0;
-    mirrored += wrote;
-    if (!wrote) continue;
-
-    // **从无到有才重载**（规格 §9.3）。这一页本来一个键都没有，说明那个应用还没被
-    // 「登录过」；补进去之后它得重新读一遍才认。反过来，本来就有值只是补了几个缺的，
-    // 重载就是白打扰 —— 人可能正在这页上填东西。
-    if (p.entries.length > 0) continue;
-
-    // 忙屏不重载。拿不到状态（服务不通）也不重载 —— 保守优先。
-    const state = states?.get(p.display);
-    if (!states) continue;
-    if (state !== undefined && state !== 'idle') continue;
-
-    const rk = `${p.display}|${p.origin}`;
+    // 忙时连写入一起延后，保留下一轮空页初始化及重载的机会。
+    if (!await mayMutate(p.display)) continue;
+    const rk = `${p.browser}|${p.origin}`;
     const n = reloads.get(rk) ?? 0;
-    if (n >= RELOAD_CAP) {
-      if (n === RELOAD_CAP) {
-        console.error(`[sync] 断路器：:${p.display} ${p.origin} 已重载 ${n} 次，不再重载`);
-        reloads.set(rk, n + 1); // 只印一次
-      }
-      continue;
+    // 发送后断连时无法确认页面是否已刷新，先消耗本次预算。
+    if (n < RELOAD_CAP && p.entries.length === 0) reloads.set(rk, n + 1);
+    const result = await evalIn(p.ws, writeLs(p.origin, missing, n < RELOAD_CAP), () => mayMutate(p.display));
+    if (result?.error) throw new Error(result.error);
+    const wrote = result?.wrote ?? 0;
+    mirrored += wrote;
+    if (result?.reloaded) {
+      reloads.set(rk, n + 1);
+      console.error(`[sync] :${p.display} ${p.origin} 从无到有补了 ${wrote} 个键，已重载`);
     }
-    reloads.set(rk, n + 1);
-    await cdp(p.ws, [{ method: 'Page.enable', params: {} }, { method: 'Page.reload', params: {} }]);
-    console.error(`[sync] :${p.display} ${p.origin} 从无到有补了 ${wrote} 个键，已重载`);
   }
 
   if (mirrored) {
@@ -219,13 +235,13 @@ async function syncOnce() {
     if (v?.webSocketDebuggerUrl) live.push({ n, port, ws: v.webSocketDebuggerUrl });
   }
   if (live.length < 2) return;
+  for (const rk of reloads.keys()) {
+    if (!live.some((b) => rk.startsWith(`${b.ws}|`))) reloads.delete(rk);
+  }
 
   await syncCookies(live);
-  // localStorage 那一层是**加层**：它坏了不该把 cookie 同步一起拖下水，
-  // 而 cookie 才是登录态的主承重（磁盘层链的也是 Cookies）。
-  await syncLocalStorage(live).catch((e) => {
-    console.error(`[sync] localStorage 这轮失败（cookie 那半不受影响）：${e.message}`);
-  });
+  // cookie 已先完成；后续失败继续向上传递，让单轮探针得到真实退出码。
+  await syncLocalStorage(live);
 }
 
 async function syncCookies(live) {
@@ -242,11 +258,14 @@ async function syncCookies(live) {
 
   let mirrored = 0;
   for (const j of jars) {
-    const have = new Set(j.cookies.map(key));
+    if (!await mayMutate(j.n)) continue;
+    const [latest] = await cdp(j.ws, [{ method: 'Storage.getCookies', params: {} }]);
+    const have = new Set((latest?.cookies ?? []).map(key));
     const missing = [...union.values()].filter((c) => !have.has(key(c)));
     if (!missing.length) continue;
-    await cdp(j.ws, [{ method: 'Storage.setCookies', params: { cookies: missing } }]);
-    mirrored += missing.length;
+    if (!await mayMutate(j.n)) continue;
+    const written = await cdp(j.ws, [{ method: 'Storage.setCookies', params: { cookies: missing } }], () => mayMutate(j.n));
+    if (written.length) mirrored += missing.length;
   }
   if (mirrored) {
     console.error(`[sync] mirrored ${mirrored} cookie write(s) across ${jars.length} monitors`);
@@ -263,4 +282,8 @@ if (process.argv[2] === '--once') {
 }
 
 console.error('[sync] mirroring cookies + localStorage across box monitors (只补缺)');
-setInterval(() => { syncOnce().catch(() => {}); }, INTERVAL_MS);
+// 等本轮结束再计时，避免慢连接让多个同步轮次交错写入。
+while (true) {
+  try { await syncOnce(); } catch (error) { console.error(`[sync] 同步失败：${error.message}`); }
+  await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+}
