@@ -35,19 +35,8 @@ if (present) {
   try {
     console.log(`Downloading ${artifact.file}`);
     if (artifact.kind === 'docker-image') {
-      // 大镜像按固定字节区间顺序读取，每段有界；失败直接报告，不重放请求。
-      const chunkBytes = 64 * 1024 * 1024;
-      for (let offset = 0; offset < artifact.bytes; offset += chunkBytes) {
-        const end = Math.min(offset + chunkBytes, artifact.bytes) - 1;
-        const response = await fetch(artifact.url, { headers: { Range: `bytes=${offset}-${end}` }, signal: AbortSignal.timeout(120_000) });
-        if (response.status !== 206 || response.headers.get('content-range') !== `bytes ${offset}-${end}/${artifact.bytes}` || !response.body) {
-          await response.body?.cancel();
-          throw new Error(`Invalid range response at ${offset}: HTTP ${response.status}`);
-        }
-        await pipeline(Readable.fromWeb(response.body), createWriteStream(partial, { flags: offset === 0 ? 'wx' : 'a', mode: 0o600 }));
-        if ((await stat(partial)).size !== end + 1) throw new Error(`Incomplete range at ${offset}`);
-        console.log(`Downloaded ${end + 1}/${artifact.bytes} bytes`);
-      }
+      // 大镜像下载复用 curl 的传输实现，限制连接、总时长与持续低速，不自动重试。
+      execFileSync('curl', ['--fail', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '30', '--max-time', '1200', '--speed-time', '60', '--speed-limit', '1024', '--silent', '--show-error', '--output', partial, artifact.url], { stdio: 'inherit' });
     } else {
       const response = await fetch(artifact.url, { signal: AbortSignal.timeout(1_200_000) });
       if (!response.ok || !response.body) throw new Error(`Download failed: HTTP ${response.status}`);

@@ -27,7 +27,7 @@ Grok Bot 0.18 全本地重建（[grok-bot-0.18-reconstructed](https://github.com
 基础镜像的完整归档保存在 [GitHub Release](https://github.com/2217173240/grok-bot-box-image/releases/tag/base-d12224a-arm64)，无需从某台开发机器复制。
 原版安装包使用清单中的官方地址下载，仍受原发布者条款约束。
 
-获取脚本需要 Node.js 22 或更新版本；继续构建主仓库时使用其要求的 Node.js 26.5.0。
+获取脚本需要 Node.js 22 或更新版本和 curl；继续构建主仓库时使用其要求的 Node.js 26.5.0。
 默认采用 Colima；使用其他 Docker 服务时显式配置 `DOCKER_HOST`。
 
 ```sh
