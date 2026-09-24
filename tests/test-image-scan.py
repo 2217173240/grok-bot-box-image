@@ -30,10 +30,13 @@ with tempfile.TemporaryDirectory(dir=root / ".cache", prefix="image-scan-test-")
     directory = Path(temporary)
     key = directory / "generated.pem"
     subprocess.run(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", str(key)], check=True, capture_output=True)
+    policy = json.loads((root / "security/reviewed-image-materials.json").read_text())
+    reviewed_key_path = next(entry["path"].lstrip("/") for entry in policy["entries"] if "private-key" in entry["ruleIds"])
     for name, layers, expected in [
         ("clean", [{"public.txt": b"public content"}], 0),
         ("removed-key", [{"key.pem": key.read_bytes()}, {".wh.key.pem": b""}], 1),
         ("runtime-data", [{"home/box/.codex/auth.json": b"{}"}], 1),
+        ("changed-reviewed-file", [{reviewed_key_path: key.read_bytes()}], 1),
     ]:
         output = directory / f"{name}.tar.gz"
         paths = [f"layer-{index}.tar" for index in range(len(layers))]
