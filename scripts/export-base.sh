@@ -7,15 +7,14 @@ EXPECTED_DIGEST="${IMAGE_MANIFEST_DIGEST:?Set IMAGE_MANIFEST_DIGEST to the revie
 [[ "$EXPECTED_REVISION" =~ ^[a-f0-9]{40}$ ]]
 [[ "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
 # 对照已审查的镜像身份、平台和来源，拒绝导出其他镜像。
-IDENTITY="$(docker image inspect "$IMAGE" --format '{{json .RepoDigests}}')"
-[[ "$IDENTITY" == *"@$EXPECTED_DIGEST\""* ]]
+docker image inspect "$IMAGE" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep -Eq "@$EXPECTED_DIGEST$"
 test "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')" = linux/arm64
 test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/2217173240/grok-bot-box-image
 test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$EXPECTED_REVISION"
 # 只导出镜像层，不导出容器、挂载目录或数据卷。
 docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}} {{.Id}} {{json .Config.Labels}}'
 mkdir -p "$(dirname "$OUTPUT")"
-test ! -e "$OUTPUT"
+if test -e "$OUTPUT"; then echo "Output already exists: $OUTPUT" >&2; exit 1; fi
 docker image save "$IMAGE" | gzip -n > "$OUTPUT.partial"
 gzip -t "$OUTPUT.partial"
 mv "$OUTPUT.partial" "$OUTPUT"
