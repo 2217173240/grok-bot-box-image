@@ -27,7 +27,8 @@ Grok Bot 0.18 全本地重建（[grok-bot-0.18-reconstructed](https://github.com
 基础镜像的完整归档保存在 [GitHub Release](https://github.com/2217173240/grok-bot-box-image/releases/tag/base-d12224a-arm64)，无需从某台开发机器复制。
 原版安装包使用清单中的官方地址下载，仍受原发布者条款约束。
 
-需要 Node.js 22 或更新版本。默认采用 Colima；使用其他 Docker 服务时显式配置 `DOCKER_HOST`。
+获取脚本需要 Node.js 22 或更新版本；继续构建主仓库时使用其要求的 Node.js 26.5.0。
+默认采用 Colima；使用其他 Docker 服务时显式配置 `DOCKER_HOST`。
 
 ```sh
 git clone https://github.com/2217173240/grok-bot-box-image.git
@@ -84,7 +85,9 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 
 ## 发布更新
 
-基础镜像通过真实容器验收后，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出；
+基础镜像通过真实容器验收后，设置 `SOURCE_REVISION` 为已审查的 40 位源码提交、
+`IMAGE_MANIFEST_DIGEST` 为已审查的 `sha256:…` manifest digest，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出。
+脚本在导出前核对 digest、平台与来源 label；
 核对归档中的 OCI manifest、平台、源码 label 和文件 SHA-256，再建立对应源码提交的 Release。
 每个版本使用独立 tag 和文件名，发布后保留原资产。更新 `artifacts/manifest.json` 和 `artifacts/SHA256SUMS`，
 并同步主仓库的基础镜像身份及验收结果。源码重新构建的镜像必须作为新身份评审，不能覆盖已发布版本。
