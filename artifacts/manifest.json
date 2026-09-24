@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    {
+      "id": "base-arm64",
+      "kind": "docker-image",
+      "file": "grok-box-base-54142f153e92-linux-arm64.tar.gz",
+      "url": "https://github.com/2217173240/grok-bot-box-image/releases/download/base-d12224a-arm64/grok-box-base-54142f153e92-linux-arm64.tar.gz",
+      "bytes": 1103505438,
+      "sha256": "1c77dea4394ef624e2c1fe78340881a8186923165dfdfdba4109258d5171eeb9",
+      "reference": "grok-box-base@sha256:54142f153e92ac86b02ad70aa992bbd01e272490882d7f600655a569c0ecf2f8",
+      "platform": "linux/arm64",
+      "sourceRepository": "https://github.com/2217173240/grok-bot-box-image",
+      "sourceRevision": "d12224a5d3acb92983d0e993b6e0128176f7e28a"
+    },
+    {
+      "id": "upstream-macos-0.18.0",
+      "kind": "upstream-installer",
+      "file": "Grok_Bot_0.18.0.dmg",
+      "url": "https://downloads.cursor.com/sand/stable/darwin-arm64/0.18.0/Grok_Bot_0.18.0.dmg",
+      "bytes": 155793020,
+      "sha256": "a253ccd8aab01e083f9812a0264354c5034d8ba7f0610bbb557e82ae77d203eb"
+    },
+    {
+      "id": "upstream-windows-0.18.0",
+      "kind": "upstream-installer",
+      "file": "Grok_Bot_0.18.0_Setup.exe",
+      "url": "https://downloads.cursor.com/sand/stable/win32-x64/0.18.0/Grok_Bot_0.18.0_Setup.exe",
+      "bytes": 125825552,
+      "sha256": "464079a15ef5fa8b61ccea8fffcc78f63cfcf6df65fb0ad5e725d8b95f7e437e"
+    }
+  ]
+}
