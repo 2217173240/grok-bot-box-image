@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+umask 077
 IMAGE="${1:?usage: export-base.sh IMAGE OUTPUT}"
 OUTPUT="${2:?usage: export-base.sh IMAGE OUTPUT}"
 EXPECTED_REVISION="${SOURCE_REVISION:?Set SOURCE_REVISION to the reviewed image source commit}"
@@ -18,9 +19,11 @@ test "$(docker image inspect "$IMAGE_ID" --format '{{index .Config.Labels "org.o
 docker image inspect "$IMAGE_ID" --format '{{.Os}}/{{.Architecture}} {{.Id}}'
 mkdir -p "$(dirname "$OUTPUT")"
 if test -e "$OUTPUT"; then echo "Output already exists: $OUTPUT" >&2; exit 1; fi
-trap 'rm -f "$OUTPUT.partial"' EXIT
-docker image save "$IMMUTABLE_IMAGE" | gzip -n > "$OUTPUT.partial"
-gzip -t "$OUTPUT.partial"
-python3 "$REPO/scripts/scan-image-archive.py" "$OUTPUT.partial"
-mv "$OUTPUT.partial" "$OUTPUT"
+PARTIAL=$(mktemp "${OUTPUT}.partial.XXXXXX")
+trap 'rm -f "$PARTIAL"' EXIT
+docker image save "$IMMUTABLE_IMAGE" | gzip -n > "$PARTIAL"
+gzip -t "$PARTIAL"
+python3 "$REPO/scripts/scan-image-archive.py" "$PARTIAL"
+# 创建正式名称时要求目标不存在，防止并发导出覆盖已有文件。
+ln "$PARTIAL" "$OUTPUT"
 shasum -a 256 "$OUTPUT"
