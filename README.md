@@ -42,6 +42,8 @@ node scripts/fetch-artifact.mjs base-arm64 --load
 归档只包含镜像层，不包含容器状态、数据卷、浏览器会话或宿主机凭据。
 省略 `--load` 时只下载并校验；重复执行会校验并复用已有文件，损坏文件明确报错。
 导入不会启动或替换正在运行的容器。
+归档保留 OCI manifest，需要支持该格式并保留 RepoDigest 的 Docker 镜像存储；已在 Colima 的 Docker 29 containerd 镜像存储中从空镜像库验证。
+如果导入后的 digest 无法解析，脚本会报错，不能用改写主仓库 pin 的方式跳过校验。
 
 原版应用输入也可以通过同一入口取得：
 
