@@ -20,9 +20,25 @@ docker image inspect "$IMAGE_ID" --format '{{.Os}}/{{.Architecture}} {{.Id}}'
 mkdir -p "$(dirname "$OUTPUT")"
 if test -e "$OUTPUT"; then echo "Output already exists: $OUTPUT" >&2; exit 1; fi
 PARTIAL=$(mktemp "${OUTPUT}.partial.XXXXXX")
-trap 'rm -f "$PARTIAL"' EXIT
-docker image save "$IMMUTABLE_IMAGE" | gzip -n > "$PARTIAL"
+EXPORT_TAG="grok-box-base:export-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+TAG_CREATED=false
+cleanup() {
+  rm -f "$PARTIAL"
+  if test "$TAG_CREATED" = true && test "$(docker image inspect "$EXPORT_TAG" --format '{{.Id}}' 2>/dev/null || true)" = "$IMAGE_ID"; then
+    docker image rm "$EXPORT_TAG" >/dev/null
+  fi
+}
+trap cleanup EXIT
+if docker image inspect "$EXPORT_TAG" >/dev/null 2>&1; then
+  echo "Export tag already exists: $EXPORT_TAG" >&2
+  exit 1
+fi
+# 独立名称保留导入后的仓库身份；它只指向已经核对的镜像，不再读取用户 tag。
+docker image tag "$IMAGE_ID" "$EXPORT_TAG"
+TAG_CREATED=true
+docker image save "$EXPORT_TAG" | gzip -n > "$PARTIAL"
 gzip -t "$PARTIAL"
+python3 "$REPO/scripts/verify-export-identity.py" "$PARTIAL" "$EXPECTED_DIGEST" "$EXPORT_TAG"
 python3 "$REPO/scripts/scan-image-archive.py" "$PARTIAL"
 # 创建正式名称时要求目标不存在，防止并发导出覆盖已有文件。
 ln "$PARTIAL" "$OUTPUT"

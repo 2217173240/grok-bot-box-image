@@ -90,11 +90,20 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 基础镜像通过真实容器验收后，设置 `SOURCE_REVISION` 为已审查的 40 位源码提交、
 `IMAGE_MANIFEST_DIGEST` 为已审查的 `sha256:…` manifest digest，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出。
 脚本在导出前核对 digest、平台与来源 label；
-导出使用核对后的不可变 digest 引用，并以 Gitleaks 8.30.1 检查镜像 config 与每个独立层，后续层删除的文件也接受检查。
+导出为已核对的不可变镜像 ID 建立唯一的 `grok-box-base:export-…` 临时 tag，保留导入时需要的仓库名称，结束时移除该临时 tag。用户已有 tag 保持不变。
+归档生成后再次核对 OCI manifest 内容及 digest，并以 Gitleaks 8.30.1 检查镜像 config 与每个独立层，后续层删除的文件也接受检查。
 本机需安装该版本的 Gitleaks，或通过 `GITLEAKS_BIN` 指定经过官方 SHA-256 校验的二进制。发现未审查命中、运行凭据路径或扫描失败时不生成正式导出文件。
 核对归档中的 OCI manifest、平台、源码 label 和文件 SHA-256，再建立对应源码提交的 Release。
 每个版本使用独立 tag 和文件名，发布后保留原资产。更新 `artifacts/manifest.json` 和 `artifacts/SHA256SUMS`，
 并同步主仓库的基础镜像身份及验收结果。源码重新构建的镜像必须作为新身份评审，不能覆盖已发布版本。
+
+导出回归验收使用 `tests/test-export-roundtrip.py`：`DOCKER_HOST` 指向源 Docker 服务，
+`EXPORT_TEST_DOCKER_HOST` 必须指向专门准备的空 Docker 镜像存储，`EXPORT_TEST_IMAGE` 指定源镜像；
+同时设置上述 `SOURCE_REVISION`、`IMAGE_MANIFEST_DIGEST` 和 `GITLEAKS_BIN`。
+目标服务位于 VM 时，`EXPORT_TEST_DOCKER_PREFIX` 可用 JSON 参数数组指定执行入口，例如 `colima ssh --profile grokbot --`；VM 必须能读取同一路径下的测试归档。
+测试 daemon 必须同时隔离网络、挂载命名空间和 containerd/data-root/socket；仅设置 `--bridge=none --iptables=false` 不能隔离宿主机网桥。
+测试执行真实导出、逐层扫描和导入，验证 `grok-box-base@sha256:…`、来源 label、文件权限及源 tag 保留。
+该测试不启动容器，测试服务及其导入镜像由验收者清理。
 
 ## 凭据与发布输入
 
