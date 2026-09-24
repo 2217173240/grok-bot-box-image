@@ -34,9 +34,25 @@ if (present) {
   const partial = `${target}.${randomUUID()}.partial`;
   try {
     console.log(`Downloading ${artifact.file}`);
-    const response = await fetch(artifact.url, { signal: AbortSignal.timeout(1_200_000) });
-    if (!response.ok || !response.body) throw new Error(`Download failed: HTTP ${response.status}`);
-    await pipeline(Readable.fromWeb(response.body), createWriteStream(partial, { flags: 'wx', mode: 0o600 }));
+    if (artifact.kind === 'docker-image') {
+      // 大镜像按固定字节区间顺序读取，每段有界；失败直接报告，不重放请求。
+      const chunkBytes = 64 * 1024 * 1024;
+      for (let offset = 0; offset < artifact.bytes; offset += chunkBytes) {
+        const end = Math.min(offset + chunkBytes, artifact.bytes) - 1;
+        const response = await fetch(artifact.url, { headers: { Range: `bytes=${offset}-${end}` }, signal: AbortSignal.timeout(120_000) });
+        if (response.status !== 206 || response.headers.get('content-range') !== `bytes ${offset}-${end}/${artifact.bytes}` || !response.body) {
+          await response.body?.cancel();
+          throw new Error(`Invalid range response at ${offset}: HTTP ${response.status}`);
+        }
+        await pipeline(Readable.fromWeb(response.body), createWriteStream(partial, { flags: offset === 0 ? 'wx' : 'a', mode: 0o600 }));
+        if ((await stat(partial)).size !== end + 1) throw new Error(`Incomplete range at ${offset}`);
+        console.log(`Downloaded ${end + 1}/${artifact.bytes} bytes`);
+      }
+    } else {
+      const response = await fetch(artifact.url, { signal: AbortSignal.timeout(1_200_000) });
+      if (!response.ok || !response.body) throw new Error(`Download failed: HTTP ${response.status}`);
+      await pipeline(Readable.fromWeb(response.body), createWriteStream(partial, { flags: 'wx', mode: 0o600 }));
+    }
     await verify(partial);
     await rename(partial, target);
   } finally { await rm(partial, { force: true }); }
