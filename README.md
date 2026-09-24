@@ -90,6 +90,16 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 基础镜像通过真实容器验收后，设置 `SOURCE_REVISION` 为已审查的 40 位源码提交、
 `IMAGE_MANIFEST_DIGEST` 为已审查的 `sha256:…` manifest digest，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出。
 脚本在导出前核对 digest、平台与来源 label；
+导出使用核对后的不可变 digest 引用，并以 Gitleaks 8.30.1 检查镜像 config 与每个独立层，后续层删除的文件也接受检查。
+本机需安装该版本的 Gitleaks，或通过 `GITLEAKS_BIN` 指定经过官方 SHA-256 校验的二进制。发现未审查命中、运行凭据路径或扫描失败时不生成正式导出文件。
 核对归档中的 OCI manifest、平台、源码 label 和文件 SHA-256，再建立对应源码提交的 Release。
 每个版本使用独立 tag 和文件名，发布后保留原资产。更新 `artifacts/manifest.json` 和 `artifacts/SHA256SUMS`，
 并同步主仓库的基础镜像身份及验收结果。源码重新构建的镜像必须作为新身份评审，不能覆盖已发布版本。
+
+## 凭据与发布输入
+
+Git 排除运行配置、私钥和浏览器数据；Docker 构建上下文仅允许所需源码，CI 用真实 `COPY` 检查排除规则。Git 历史扫描与镜像扫描全量遮蔽匹配内容，不上传扫描报告或运行数据。
+
+`security/reviewed-image-materials.json` 登记公开发行包材料的精确路径、规则与完整文件 SHA-256，包括系统源码、测试向量和 Chromium 公开服务配置。三项同时匹配才可接受，内容改变需要重新审查；用户凭据没有例外。已有固定归档的 16 层已逐层检查，113 个扫描命中对应 40 个发行包文件，未确认用户私有凭据泄漏。
+
+扫描覆盖 config 与层内普通文件；层内再次压缩的包、未知凭据格式和未被规则识别的内容不能据此宣称安全。浏览器 cookie/profile、用户数据卷和宿主账号目录始终属于运行数据，禁止用于镜像构建或发布。
