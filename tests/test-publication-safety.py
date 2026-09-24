@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix="publication-context-") as temporary:
         target = context / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / relative, target)
-    for relative in markers | {"unrelated.txt", "box-service/notes.txt", "box-service/lib/notes.txt"}:
+    for relative in markers | {"unrelated.txt", "box-image/bin/notes.txt", "box-service/notes.txt", "box-service/lib/notes.txt"}:
         target = context / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("harmless publication-safety fixture\n")

@@ -1,7 +1,9 @@
 # 仅允许 Dockerfile 所需的源码进入构建上下文。
 **
 !box-image/
+box-image/**
 !box-image/bin/
+box-image/bin/**
 !box-image/bin/box-chrome
 !box-image/bin/box-common.sh
 !box-image/bin/box-init
@@ -16,10 +18,12 @@
 !box-image/bin/stop-window
 !box-image/bin/sync-probe.mjs
 !box-service/
+box-service/**
 !box-service/package.json
 !box-service/package-lock.json
 !box-service/server.mjs
 !box-service/lib/
+box-service/lib/**
 !box-service/lib/*.mjs
 !box-service/lib/*.py
 
