@@ -1,0 +1,328 @@
+{
+  "version": 1,
+  "description": "Reviewed distribution-package material from the scanned base-image archive. Match exact path, rule ID, and full-file SHA-256 together; any content change requires review. No wildcard exceptions and no user-credential exceptions.",
+  "chromiumPublicReferenceURL": "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=748867",
+  "entries": [
+    {
+      "path": "/etc/chromium.d/apikeys",
+      "sha256": "61b46c4001c557d3e7ccd3cca67391edd550b3af4827720a093f84353bcb35d8",
+      "ruleIds": [
+        "gcp-api-key",
+        "generic-api-key"
+      ],
+      "reason": "Debian Chromium publicly distributed API configuration: content matches the installed package conffile record, and all nonempty GOOGLE_* export values match the public Debian reference. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/bin/rsync-ssl",
+      "sha256": "10651d75d18b141c3431147feda80196c23be1030cd6c125461eeae49c9a52a9",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/include/linux/netfilter/nf_tables.h",
+      "sha256": "7764b7184f525456c6d3fe1ca6de0cde7f7f0a230497b4822daddd7e29598833",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/include/linux/nl80211.h",
+      "sha256": "a004c529f3f68bcbeaeae5fffd0b795106c124f33e558b4708efd28d5c0d0bc9",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/include/node/v8-internal.h",
+      "sha256": "e49f827cbc397f5ba1aee509b946b77d4c0bafe1e700a4b23966c5582d284822",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/include/nodejs/deps/v8/include/v8-internal.h",
+      "sha256": "e49f827cbc397f5ba1aee509b946b77d4c0bafe1e700a4b23966c5582d284822",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/include/nodejs/src/crypto/crypto_rsa.h",
+      "sha256": "231a3ddd7d7e4de92c0d4053e4b8b91b1a670d25f7d205fc94b3174a581853a6",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/lib/aarch64-linux-gnu/perl/5.40.1/CORE/cop.h",
+      "sha256": "0400ff64bbce2fe6d4c6a777f574f1b8ebb3e23a7e336a4ebd28defc103bac99",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/lib/file/magic.mgc",
+      "sha256": "23e4e113bd1e43940d079f9f8a9a105ce7b99321c917623808701eac99cb81af",
+      "ruleIds": [
+        "private-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/lib/python3/dist-packages/numpy/random/tests/test_generator_mt19937.py",
+      "sha256": "67b0fc3dc885a1a605fd70ad20d1f37e3a2f5991ea816995389d948ef3645a53",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/doc/python3-redis/examples/opentelemetry/uptrace.yml",
+      "sha256": "78f4f4ebcb932b42f85952123c287ae5bd1bc0c9cbb3e3b3effd3b94b73e674d",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/ecdh/ecdh_test.go",
+      "sha256": "941c2f54c29641c406e747242a70bd1358a3f5ab9125475daac6221c6c5a818f",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/internal/fips140/mlkem/generate1024.go",
+      "sha256": "f0e56d86d417e61e27543d8b8e6cd6b4aa4f87126d6f7dacebcc580bff29a60a",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/internal/fips140/mlkem/mlkem1024.go",
+      "sha256": "9ce3848f1027ef795fbe8d6a6e4e2fdcbeb5cc27a5c469eee3f19082c910cc92",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/internal/fips140/mlkem/mlkem768.go",
+      "sha256": "a5f6b1ca2ffe2a6a85cb4043bd4af6ba6b5363f1c444d8870ea5813278e17cd4",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/internal/hpke/testdata/rfc9180-vectors.json",
+      "sha256": "025ef553f3409ca06c87f43bbddd2d977fb94901adc910bc2ceee3cb27cfd856",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/mlkem/mlkem.go",
+      "sha256": "eb605062890ba04bcb2098efe2b926bace83e91bf8fc15058b21ef7fcecf209a",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/tls/example_test.go",
+      "sha256": "0c1c065aea98125a16fe59fe30df13e57400179fa5b3c2503fb3b98dcc99457d",
+      "ruleIds": [
+        "private-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/tls/fips_test.go",
+      "sha256": "46f26bd5ab82910dfb3d63ade4b5e5244e4714e4ff15704574ae32af070269d7",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/tls/handshake_client_test.go",
+      "sha256": "c39c73e65c1f977fa9c808ef5083b04bc0192e78c0c9a5c73117f06bc4f98456",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/tls/handshake_server_test.go",
+      "sha256": "d3c776a4f99d6dbcac94c1ef96dbe9be79db3dc7560371f69a94173068ee4ada",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/tls/testdata/example-key.pem",
+      "sha256": "4280dcaf02ddf203cc1e3179b872f2e2f130662437b2f525bb24dfab4e7fade3",
+      "ruleIds": [
+        "private-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/x509/pkcs8_test.go",
+      "sha256": "2697e68c351ba904d8f2f46a97fd66e35366434756094dc4985c9288bcc37984",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/x509/platform_root_key.pem",
+      "sha256": "2fea2ebe77388df61566fcd43eb0070dbff2842c8786a0e7906a13e5f10c3e65",
+      "ruleIds": [
+        "private-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/x509/sec1_test.go",
+      "sha256": "9405912c47cd428c9bd4e65fab33e3ced23b585319cbf041c14a459f141fd7cd",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/crypto/x509/x509_test.go",
+      "sha256": "0e9922fa015d87dd8b8942dda573b41fa488d4e75aa6b00583f3146be5908260",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/debug/buildinfo/testdata/go117/go117.base64",
+      "sha256": "d700d16512bc8fb57b8f9d4f2a88242814e9b62ee2be7ad96907a93d26f2b138",
+      "ruleIds": [
+        "square-access-token"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/internal/trace/testdata/testprog/annotations.go",
+      "sha256": "91796ba58dae8ee24f7ac03be0d4929f425dd6d4e7621772211b34ff712c81ec",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/go-1.24/src/internal/trace/trace_test.go",
+      "sha256": "b20b01ed378fbab28df0c81516150c2208c1e393b8b6fdfe33d9c3a789d20260",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/nodejs/@types/es-abstract/es2016.d.ts",
+      "sha256": "0059a79939a77e306dcb47531fe69af604fbf3668dc05307cbcd432a5b919196",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/nodejs/@types/es-abstract/es2017.d.ts",
+      "sha256": "1fd1177b9eaf4979a624e6bc615ecdd9dccd739af8169a96fa9d1dcc17c956fd",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/nodejs/@types/es-abstract/es2018.d.ts",
+      "sha256": "a51a93a47bd5b77a9a1dfb1caabb630e297f144e0e8c9b04b0056f2e456527fc",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/nodejs/@types/es-abstract/es2019.d.ts",
+      "sha256": "1bae710e9248e50390753e3a33bfad6f2b9a751ba06f802cfbcda7e88f4dd8b1",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/nodejs/@types/node/https.d.ts",
+      "sha256": "4ff41188773cbf465807dd2f7059c7494cbee5115608efc297383832a1150c43",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/croatian_cp1250.vim",
+      "sha256": "6bc6f553e789cbd201d0192b87be1be59ceb0acddb040a13ea342014d2376b82",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/croatian_utf-8.vim",
+      "sha256": "5be5a1846f45d25433092bd2710dac2eb76fd06e96f0cfbb2ebc6e9628ab66d9",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/serbian-latin_utf-8.vim",
+      "sha256": "2f3749d8f4132cf0b2a41a42ffb1b8e0b75e19e925e8f864628e74fe0e6db013",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/serbian_cp1250.vim",
+      "sha256": "77e2b763d39bfda263724df1612d229f455b159c62a58cb36567a1c8d589d255",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/serbian_cp1251.vim",
+      "sha256": "c89cc5c537f7309de2ed96e5a2c53d56ca130caf55f12a59bb0d5d04e7e5e8bb",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    },
+    {
+      "path": "/usr/share/vim/vim91/keymap/serbian_utf-8.vim",
+      "sha256": "ca580dd37dd4689fd8b9faf0572e48f55332f4b407867047678819369f5fcefd",
+      "ruleIds": [
+        "generic-api-key"
+      ],
+      "reason": "Debian package material: file content matches the installed package md5sums record; source, test fixture, example, keymap, or file-format detection data. This review does not permit user credentials."
+    }
+  ]
+}

@@ -2,3 +2,37 @@ node_modules
 .DS_Store
 *.log
 .cache/
+
+# 本地配置、凭据与浏览器会话只保存在运行数据目录。
+.env
+.env.*
+.npmrc
+.ssh/
+.claude/
+.codex/
+credentials
+credentials.json
+credentials.yaml
+credentials.yml
+auth.json
+auth.*.json
+user-secrets
+user-secrets.json
+box-secrets
+box-secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+chrome-profile*/
+chromium-profile*/
+browser-profile*/
+user-data-dir/
+sand-data/
+Cookies
+Cookies-journal
+Login Data
+Login Data-journal
+Local State
