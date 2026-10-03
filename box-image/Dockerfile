@@ -76,7 +76,7 @@ RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 instal
       openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-# bun 与 uv：Debian 里没有，取官方 arm64 二进制。版本写死，要升就改这四个 ARG ——
+# bun 与 uv 使用官方二进制，按 TARGETARCH 选择文件与官方 SHA-256。
 # 用 `curl | bash` 那种安装脚本会装进 $HOME、且每次构建拉到的版本都不一样，镜像就不可复现了。
 #
 # **校验和是承重的，不是讲究。** 上面 apt 那两层之所以敢说「可复现」，靠的是仓库签名；
@@ -85,21 +85,25 @@ RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 instal
 # 下一次 build 就把换掉的二进制装进这台持有全机登录态、还有免密 sudo 的容器。
 # 值取自官方清单（bun 的 SHASUMS256.txt、uv 的 .sha256），升版本时一并更新。
 ARG BUN_VERSION=1.3.14
-ARG BUN_SHA256=a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b
 ARG UV_VERSION=0.12.4
-ARG UV_SHA256=49d881b3403187e1f1789720881e77e4251ad4259d86c4844862657d2a35d13f
+ARG TARGETARCH
 RUN set -eux; \
-    curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-aarch64.zip" -o /tmp/bun.zip; \
+    case "$TARGETARCH" in \
+      arm64) BUN_ARCH=aarch64; UV_ARCH=aarch64; BUN_SHA256=a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b; UV_SHA256=49d881b3403187e1f1789720881e77e4251ad4259d86c4844862657d2a35d13f ;; \
+      amd64) BUN_ARCH=x64-baseline; UV_ARCH=x86_64; BUN_SHA256=a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7; UV_SHA256=c8c60f47e6f88d18dbf6f33d7279fb1fbf7ae76631768152cf5578c3d65729b4 ;; \
+      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${BUN_ARCH}.zip" -o /tmp/bun.zip; \
     echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c -; \
     unzip -q /tmp/bun.zip -d /tmp; \
-    install -m 0755 /tmp/bun-linux-aarch64/bun /usr/local/bin/bun; \
+    install -m 0755 /tmp/bun-linux-${BUN_ARCH}/bun /usr/local/bin/bun; \
     # uv 不能像以前那样 `curl | tar`：管道里校验不了，得先落盘再核对再解包。
-    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-aarch64-unknown-linux-gnu.tar.gz" -o /tmp/uv.tgz; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}-unknown-linux-gnu.tar.gz" -o /tmp/uv.tgz; \
     echo "${UV_SHA256}  /tmp/uv.tgz" | sha256sum -c -; \
     tar -xzf /tmp/uv.tgz -C /tmp; \
-    install -m 0755 /tmp/uv-aarch64-unknown-linux-gnu/uv /usr/local/bin/uv; \
-    install -m 0755 /tmp/uv-aarch64-unknown-linux-gnu/uvx /usr/local/bin/uvx; \
-    rm -rf /tmp/bun.zip /tmp/uv.tgz /tmp/bun-linux-aarch64 /tmp/uv-aarch64-unknown-linux-gnu; \
+    install -m 0755 /tmp/uv-${UV_ARCH}-unknown-linux-gnu/uv /usr/local/bin/uv; \
+    install -m 0755 /tmp/uv-${UV_ARCH}-unknown-linux-gnu/uvx /usr/local/bin/uvx; \
+    rm -rf /tmp/bun.zip /tmp/uv.tgz /tmp/bun-linux-${BUN_ARCH} /tmp/uv-${UV_ARCH}-unknown-linux-gnu; \
     bun --version; uv --version
 
 # Playwright：只装库，不下载它自带的浏览器。镜像里已经有一只 Chromium，

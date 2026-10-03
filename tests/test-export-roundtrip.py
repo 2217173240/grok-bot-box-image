@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(dir=cache, prefix="export-roundtrip-") as direc
     loaded = json.loads(target("image", "inspect", reference))[0]
     assert reference in loaded["RepoDigests"]
     assert loaded["Id"] == before["Id"]
-    assert (loaded["Os"], loaded["Architecture"]) == ("linux", "arm64")
+    assert f'{loaded["Os"]}/{loaded["Architecture"]}' == os.environ.get("IMAGE_PLATFORM", "linux/arm64")
     assert loaded["Config"]["Labels"] == before["Config"]["Labels"]
     after = json.loads(source("image", "inspect", image))[0]
     assert after["RepoTags"] == before["RepoTags"], "Exporter must remove its tag and preserve user tags"

@@ -1,0 +1,58 @@
+name: Build Linux image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'box-image/**'
+      - 'box-service/**'
+      - 'scripts/**'
+      - '.github/workflows/build-image.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  amd64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4
+        with:
+          daemon-config: |
+            { "features": { "containerd-snapshotter": true } }
+      - name: Build amd64 base
+        run: |
+          mkdir -p .cache/build
+          docker buildx build --platform linux/amd64 --provenance=false --load \
+            --build-arg "SOURCE_REVISION=$GITHUB_SHA" \
+            --metadata-file .cache/build/metadata.json \
+            -f box-image/Dockerfile -t grok-box-base:ci-amd64 .
+      - name: Verify native tools and desktop
+        run: python3 tests/test-native-image.py grok-box-base:ci-amd64 linux/amd64
+      - name: Prepare archive scanner
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output .cache/build/gitleaks.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  .cache/build/gitleaks.tar.gz' | sha256sum --check -
+          tar -xzf .cache/build/gitleaks.tar.gz -C .cache/build gitleaks
+      - name: Export and verify archive
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+          IMAGE_PLATFORM: linux/amd64
+        run: |
+          export IMAGE_MANIFEST_DIGEST="$(jq -r '."containerimage.digest"' .cache/build/metadata.json)"
+          export GITLEAKS_BIN="$GITHUB_WORKSPACE/.cache/build/gitleaks"
+          bash scripts/export-base.sh grok-box-base:ci-amd64 .cache/build/grok-box-base-linux-amd64.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-base-linux-amd64
+          path: |
+            .cache/build/metadata.json
+            .cache/build/grok-box-base-linux-amd64.tar.gz
+          compression-level: 0
+          retention-days: 7

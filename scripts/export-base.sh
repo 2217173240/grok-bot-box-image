@@ -5,6 +5,8 @@ IMAGE="${1:?usage: export-base.sh IMAGE OUTPUT}"
 OUTPUT="${2:?usage: export-base.sh IMAGE OUTPUT}"
 EXPECTED_REVISION="${SOURCE_REVISION:?Set SOURCE_REVISION to the reviewed image source commit}"
 EXPECTED_DIGEST="${IMAGE_MANIFEST_DIGEST:?Set IMAGE_MANIFEST_DIGEST to the reviewed sha256 manifest digest}"
+EXPECTED_PLATFORM="${IMAGE_PLATFORM:-linux/arm64}"
+case "$EXPECTED_PLATFORM" in linux/arm64|linux/amd64) ;; *) echo "Unsupported platform: $EXPECTED_PLATFORM" >&2; exit 1 ;; esac
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 [[ "$EXPECTED_REVISION" =~ ^[a-f0-9]{40}$ ]]
 [[ "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
@@ -12,7 +14,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE_ID=$(docker image inspect "$IMAGE" --format '{{.Id}}')
 IMMUTABLE_IMAGE=$(docker image inspect "$IMAGE_ID" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep -E "@$EXPECTED_DIGEST$" | head -n 1)
 test -n "$IMMUTABLE_IMAGE"
-test "$(docker image inspect "$IMAGE_ID" --format '{{.Os}}/{{.Architecture}}')" = linux/arm64
+test "$(docker image inspect "$IMAGE_ID" --format '{{.Os}}/{{.Architecture}}')" = "$EXPECTED_PLATFORM"
 test "$(docker image inspect "$IMAGE_ID" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/2217173240/grok-bot-box-image
 test "$(docker image inspect "$IMAGE_ID" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$EXPECTED_REVISION"
 # 只导出镜像层，不导出容器、挂载目录或数据卷。
