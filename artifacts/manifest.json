@@ -14,6 +14,18 @@
       "sourceRevision": "d12224a5d3acb92983d0e993b6e0128176f7e28a"
     },
     {
+      "id": "base-amd64",
+      "kind": "docker-image",
+      "file": "grok-box-base-e53fd2e73fa9-linux-amd64.tar.gz",
+      "url": "https://github.com/2217173240/grok-bot-box-image/releases/download/base-d7e8cc1-amd64/grok-box-base-e53fd2e73fa9-linux-amd64.tar.gz",
+      "bytes": 1125592878,
+      "sha256": "1e72ab6f0fbdd2ad3c69cbfe09274e6bc4bab076a90e9e21cff738e240f50453",
+      "reference": "grok-box-base@sha256:e53fd2e73fa9257c6c197df32ef793f145545a063682c722cf7cb7e8ef53ade5",
+      "platform": "linux/amd64",
+      "sourceRepository": "https://github.com/2217173240/grok-bot-box-image",
+      "sourceRevision": "d7e8cc180bf430bc647f36302ef09cd808b6796d"
+    },
+    {
       "id": "upstream-macos-0.18.0",
       "kind": "upstream-installer",
       "file": "Grok_Bot_0.18.0.dmg",
