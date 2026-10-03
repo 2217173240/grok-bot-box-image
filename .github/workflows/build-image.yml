@@ -16,10 +16,13 @@ jobs:
   amd64:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          ref: ${{ env.SOURCE_REVISION }}
       - uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4
         with:
           daemon-config: |
@@ -28,7 +31,7 @@ jobs:
         run: |
           mkdir -p .cache/build
           docker buildx build --platform linux/amd64 --provenance=false --load \
-            --build-arg "SOURCE_REVISION=$GITHUB_SHA" \
+            --build-arg "SOURCE_REVISION=$SOURCE_REVISION" \
             --metadata-file .cache/build/metadata.json \
             -f box-image/Dockerfile -t grok-box-base:ci-amd64 .
       - name: Verify native tools and desktop
@@ -42,17 +45,20 @@ jobs:
           tar -xzf .cache/build/gitleaks.tar.gz -C .cache/build gitleaks
       - name: Export and verify archive
         env:
-          SOURCE_REVISION: ${{ github.sha }}
           IMAGE_PLATFORM: linux/amd64
         run: |
           export IMAGE_MANIFEST_DIGEST="$(jq -r '."containerimage.digest"' .cache/build/metadata.json)"
           export GITLEAKS_BIN="$GITHUB_WORKSPACE/.cache/build/gitleaks"
           bash scripts/export-base.sh grok-box-base:ci-amd64 .cache/build/grok-box-base-linux-amd64.tar.gz
+          docker image inspect grok-box-base:ci-amd64 > .cache/build/image.json
+          sha256sum .cache/build/grok-box-base-linux-amd64.tar.gz > .cache/build/archive.sha256
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: verified-base-linux-amd64
           path: |
             .cache/build/metadata.json
+            .cache/build/image.json
+            .cache/build/archive.sha256
             .cache/build/grok-box-base-linux-amd64.tar.gz
           compression-level: 0
           retention-days: 7

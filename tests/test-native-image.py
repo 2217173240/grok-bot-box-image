@@ -19,7 +19,7 @@ assert f'{metadata["Os"]}/{metadata["Architecture"]}' == platform
 for command in [("bun", "--version"), ("uv", "--version"), ("chromium", "--version"), ("node", "--version")]:
     print(docker("run", "--rm", "--network", "none", "--entrypoint", command[0], image, *command[1:]))
 name = "grok-image-test-" + uuid.uuid4().hex
-docker("run", "--detach", "--name", name, "--shm-size", "512m", image)
+docker("run", "--detach", "--name", name, "--shm-size", "512m", "--security-opt", "seccomp=unconfined", image)
 try:
     deadline = time.monotonic() + 90
     while True:
