@@ -19,11 +19,14 @@ assert f'{metadata["Os"]}/{metadata["Architecture"]}' == platform
 for command in [("bun", "--version"), ("uv", "--version"), ("chromium", "--version"), ("node", "--version")]:
     print(docker("run", "--rm", "--network", "none", "--entrypoint", command[0], image, *command[1:]))
 name = "grok-image-test-" + uuid.uuid4().hex
-docker("run", "--detach", "--name", name, "--shm-size", "512m", "--security-opt", "seccomp=unconfined", image)
+# 使用生产状态文件规则隔离常驻同步；S3 probe 自行发布状态并运行真实同步进程。
+docker("run", "--detach", "--name", name, "--shm-size", "512m", "--security-opt", "seccomp=unconfined",
+       "--env", "SAND_SESSION_SYNC_STATE_FILE=/home/box/.cache/ci-activity.json", image)
 try:
     deadline = time.monotonic() + 90
     while True:
-        ready = subprocess.run(["docker", "exec", name, "bash", "-c", "DISPLAY=:1 xdpyinfo >/dev/null 2>&1 && curl -fsS http://127.0.0.1:6080/ >/dev/null"], capture_output=True)
+        ready = subprocess.run(["docker", "exec", name, "bash", "-c",
+                                "DISPLAY=:1 xdpyinfo >/dev/null 2>&1 && curl -fsS http://127.0.0.1:6080/ >/dev/null && DISPLAY=:1 xwininfo -root -children | grep -q '\"plank\"'"], capture_output=True)
         if ready.returncode == 0:
             break
         state = json.loads(docker("inspect", name))[0]["State"]
