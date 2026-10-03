@@ -95,7 +95,7 @@ jobs:
               cat .cache/release/tag-error.txt >&2
               exit 1
             fi
-            gh release create "$RELEASE_TAG" "$archive" "$manifest" --target "$SOURCE_REVISION" \
+            gh release create "$RELEASE_TAG" "$archive" "$manifest" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_REVISION" \
               --title 'Linux amd64 base image (d7e8cc1)' \
               --notes "Built and scanned by https://github.com/$GITHUB_REPOSITORY/actions/runs/$REVIEWED_RUN. The archive SHA-256 and Linux amd64 digest, source labels, and empty-store Docker import were verified before publication."
           fi
