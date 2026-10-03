@@ -24,9 +24,15 @@ docker("run", "--detach", "--name", name, "--shm-size", "512m", "--security-opt"
        "--env", "SAND_SESSION_SYNC_STATE_FILE=/home/box/.cache/ci-activity.json", image)
 try:
     deadline = time.monotonic() + 90
+    ready_checks = [
+        "DISPLAY=:1 xdpyinfo >/dev/null 2>&1",
+        "curl -fsS http://127.0.0.1:6080/ >/dev/null",
+        "curl -fsS http://127.0.0.1:18765/v1/screens >/dev/null",
+        "DISPLAY=:1 xwininfo -root -children | grep -q '\"plank\"'",
+        "DISPLAY=:1 xwininfo -root -children | grep -oE '184x66\\+[0-9]+\\+[0-9]+' | awk -F'+' '$3 >= 700 { found=1 } END { exit !found }'",
+    ]
     while True:
-        ready = subprocess.run(["docker", "exec", name, "bash", "-c",
-                                "DISPLAY=:1 xdpyinfo >/dev/null 2>&1 && curl -fsS http://127.0.0.1:6080/ >/dev/null && DISPLAY=:1 xwininfo -root -children | grep -q '\"plank\"'"], capture_output=True)
+        ready = subprocess.run(["docker", "exec", name, "bash", "-c", " && ".join(ready_checks)], capture_output=True)
         if ready.returncode == 0:
             break
         state = json.loads(docker("inspect", name))[0]["State"]
