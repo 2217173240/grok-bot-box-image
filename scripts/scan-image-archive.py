@@ -20,7 +20,7 @@ if version != "8.30.1":
 policy = json.loads((root / "security/reviewed-image-materials.json").read_text())
 if policy.get("version") != 1 or not isinstance(policy.get("entries"), list):
     raise ValueError("Invalid reviewed image material policy")
-reviewed = {}
+reviewed = set()
 for entry in policy["entries"]:
     path = PurePosixPath(entry["path"])
     if ".." in path.parts or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]):
@@ -28,10 +28,10 @@ for entry in policy["entries"]:
     if path.is_absolute():
         path = path.relative_to("/")
     for rule in entry["ruleIds"]:
-        identity = (str(path), rule)
+        identity = (str(path), rule, entry["sha256"])
         if identity in reviewed:
             raise ValueError("Duplicate reviewed image material identity")
-        reviewed[identity] = entry["sha256"]
+        reviewed.add(identity)
 forbidden = re.compile(r"(^|/)(auth\.json|credentials\.json|user-secrets\.json|box-secrets\.json|anthropic-token|Cookies(?:-journal)?|Login Data(?:-journal)?|id_rsa|id_ed25519)$|(^|/)(\.aws|\.ssh|\.claude|\.codex)/")
 findings = False
 scanned_layers = 0
@@ -55,8 +55,8 @@ def scan(directory):
     for item in json.loads(report.read_text()):
         path = Path(item["File"])
         relative = path.relative_to(directory).as_posix()
-        expected = reviewed.get((relative, item["RuleID"]))
-        if expected is not None and hashlib.sha256(path.read_bytes()).hexdigest() == expected:
+        identity = (relative, item["RuleID"], hashlib.sha256(path.read_bytes()).hexdigest())
+        if identity in reviewed:
             accepted += 1
             continue
         findings = True

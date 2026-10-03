@@ -14,6 +14,7 @@ const manifest = JSON.parse(await readFile(path.join(root, 'artifacts/manifest.j
 const artifact = manifest.artifacts.find(item => item.id === id);
 if (manifest.schemaVersion !== 1 || !artifact || !/^[a-f0-9]{64}$/.test(artifact.sha256) || !Number.isSafeInteger(artifact.bytes) || artifact.bytes <= 0 || path.basename(artifact.file) !== artifact.file || new URL(artifact.url).protocol !== 'https:') throw new Error('Invalid artifact identity or unknown artifact ID');
 if (flags.includes('--load') && artifact.kind !== 'docker-image') throw new Error('--load requires a Docker image artifact');
+if (artifact.kind === 'docker-image' && (!['linux/arm64', 'linux/amd64'].includes(artifact.platform) || !/^grok-box-base@sha256:[a-f0-9]{64}$/.test(artifact.reference) || artifact.sourceRepository !== 'https://github.com/2217173240/grok-bot-box-image' || !/^[a-f0-9]{40}$/.test(artifact.sourceRevision))) throw new Error('Invalid Docker image platform or source identity');
 const directory = path.join(root, '.cache/artifacts');
 const target = path.join(directory, artifact.file);
 await mkdir(directory, { recursive: true });
