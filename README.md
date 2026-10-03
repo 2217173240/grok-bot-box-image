@@ -1,12 +1,12 @@
 # grok-bot-box-image
 
 Grok Bot 0.18 全本地重建（[grok-bot-0.18-reconstructed](https://github.com/2217173240/grok-bot-0.18-reconstructed)）
-所需 base 镜像 `grok-box-base:arm64` 的源码与构建配方。
+所需 Linux arm64 / amd64 基础镜像的源码、构建配方与固定归档。
 
 内容为 2026-08 对 Grok Bot 0.18 沙箱计算机的黑盒观察仿写（端口公式、桌面进程、
 浏览器启动器的观察记录见主仓库 `docs/ARCHIVE-ASSETS.md` 的对齐表）：
 
-- `box-image/Dockerfile` —— debian:trixie / arm64 全套桌面（Xvfb、xfwm4、x11vnc、noVNC、
+- `box-image/Dockerfile` —— debian:trixie / arm64、amd64 全套桌面（Xvfb、xfwm4、x11vnc、noVNC、
   Chromium、CJK 字体）+ 开发试验场工具链（Go、Rust、Python、bun、uv、gh…），
   bun / uv 版本与 SHA-256 固定，Playwright 固定版本；约 31 个构建步骤。
 - `box-image/bin/` —— 容器内治理脚本：`box-init`（入口）、`start-desktop.sh`（每屏进程监督表）、
@@ -15,8 +15,9 @@ Grok Bot 0.18 全本地重建（[grok-bot-0.18-reconstructed](https://github.com
 - `box-service/` —— 容器内窗口服务（base 镜像的 `box-init` 依赖它存在）。
 - `.dockerignore` —— 构建上下文排除项（须位于上下文根）。
 
-主仓库默认使用项目专用的 Colima `grokbot` profile；运行时可通过
+主仓库在 macOS 上默认使用项目专用的 Colima `grokbot` profile；运行时可通过
 `GROKBOT_COLIMA_PROFILE` 选择其他名称，显式设置 `DOCKER_HOST` 时以它为准。
+Windows x64 使用 Docker Desktop 的 Linux containers。
 基础镜像把主屏 Chromium profile 链接到 `/home/box/sand-data/chrome-profile`。
 主仓库在父目录 `/home/box/sand-data` 挂载持久数据卷，登录状态随容器替换保留；启动入口在空卷上建立目录，
 并清理前一次 Chromium 遗留的 Singleton 锁。副屏继续从主屏共享登录所需文件。
@@ -24,11 +25,11 @@ Grok Bot 0.18 全本地重建（[grok-bot-0.18-reconstructed](https://github.com
 ## 获取主仓库使用的固定构件
 
 本仓库的 `artifacts/manifest.json` 统一登记基础镜像和原版 0.18.0 安装包的获取地址、大小与 SHA-256。
-基础镜像的完整归档保存在 [GitHub Release](https://github.com/2217173240/grok-bot-box-image/releases/tag/base-d12224a-arm64)，无需从某台开发机器复制。
+基础镜像的完整归档分别保存在 [arm64 Release](https://github.com/2217173240/grok-bot-box-image/releases/tag/base-d12224a-arm64) 和 [amd64 Release](https://github.com/2217173240/grok-bot-box-image/releases/tag/base-d7e8cc1-amd64)。
 原版安装包使用清单中的官方地址下载，仍受原发布者条款约束。
 
 获取脚本需要 Node.js 22 或更新版本和 curl；继续构建主仓库时使用其要求的 Node.js 26.5.0。
-默认采用 Colima；使用其他 Docker 服务时显式配置 `DOCKER_HOST`。
+macOS Apple Silicon 使用 Colima：
 
 ```sh
 git clone https://github.com/2217173240/grok-bot-box-image.git
@@ -38,11 +39,19 @@ export DOCKER_HOST="unix://$HOME/.colima/grokbot/docker.sock"
 node scripts/fetch-artifact.mjs base-arm64 --load
 ```
 
+Windows x64 在 Docker Desktop 中启用 Linux containers 后执行：
+
+```powershell
+git clone https://github.com/2217173240/grok-bot-box-image.git
+cd grok-bot-box-image
+node scripts/fetch-artifact.mjs base-amd64 --load
+```
+
 脚本先验证下载归档的大小与 SHA-256，随后导入 Docker，并核对 manifest digest、平台与源码 label。
 归档只包含镜像层，不包含容器状态、数据卷、浏览器会话或宿主机凭据。
 省略 `--load` 时只下载并校验；重复执行会校验并复用已有文件，损坏文件明确报错。
 导入不会启动或替换正在运行的容器。
-归档保留 OCI manifest，需要支持该格式并保留 RepoDigest 的 Docker 镜像存储；已在 Colima 的 Docker 29 containerd 镜像存储中从空镜像库验证。
+归档保留 OCI manifest，需要启用支持该格式并保留 RepoDigest 的 containerd 镜像存储；arm64 已在 Colima 验证，amd64 已在 GitHub Linux runner 的空镜像存储中验证导入。
 如果导入后的 digest 无法解析，脚本会报错，不能用改写主仓库 pin 的方式跳过校验。
 
 原版应用输入也可以通过同一入口取得：
@@ -54,7 +63,7 @@ node scripts/fetch-artifact.mjs upstream-windows-0.18.0
 
 文件保存在 `.cache/artifacts/`。主仓库 `npm run bootstrap` 本身支持从相同官方地址获取 macOS 构件；
 已下载 DMG 可复制到主仓库 `.cache/downloads/Grok_Bot_0.18.0.dmg`，bootstrap 会再次校验。
-Windows 安装包供研究保留，当前主仓库不生成 Windows 应用。
+Windows 构建使用清单中的原版 Windows 安装包，具体步骤见主仓库部署手册。
 
 ## 从源码构建新基础镜像
 
@@ -66,7 +75,7 @@ export DOCKER_HOST="unix://$HOME/.colima/grokbot/docker.sock"
 docker build --platform linux/arm64 --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" -f box-image/Dockerfile -t grok-box-base:arm64 .
 ```
 
-要求 arm64 主机（Apple Silicon 原生，无模拟）；构建从公网拉取 Debian 软件包、
+上例使用 arm64；amd64 主机将平台改为 `linux/amd64`、镜像标签改为 `grok-box-base:amd64`。构建从公网拉取 Debian 软件包、
 GitHub release（bun/uv，SHA 校验）、npm registry（Playwright 指定版本，ws 使用 `8.x` 范围）。
 Debian 基础镜像使用固定 digest；APT 软件包来源会更新，同一份源码重新构建可能生成不同的镜像身份。
 约 20-40 分钟。已有 `grokbot` profile 时直接使用它；构建不会自动修改主仓库固定的
@@ -75,8 +84,9 @@ Debian 基础镜像使用固定 digest；APT 软件包来源会更新，同一�
 
 ## 与主仓库的衔接
 
-base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄层
-`grok-bot-exec-box:arm64`（Node 22 固定版本 + 仓库依赖），随后按主仓库
+base 镜像就位后，到主仓库执行 `node docker/build-box.mjs --platform linux/arm64` 或
+`node docker/build-box.mjs --platform linux/amd64`，分别构建 `grok-bot-exec-box:arm64` 或
+`grok-bot-exec-box:amd64`（Node 22 固定版本 + 仓库依赖），随后按主仓库
 `docs/DEPLOY-HANDBOOK.md` §3/§4/§6 完成部署。完整部署手册见主仓库。
 主屏 profile 链接由基础镜像维护。主仓库以 `box-init-exec` 启动本地模式，基础镜像的
 `box-init` 与 `box-service` 仍服务于独立运行基础镜像的路径。
@@ -88,7 +98,7 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 ## 发布更新
 
 基础镜像通过真实容器验收后，设置 `SOURCE_REVISION` 为已审查的 40 位源码提交、
-`IMAGE_MANIFEST_DIGEST` 为已审查的 `sha256:…` manifest digest，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出。
+`IMAGE_MANIFEST_DIGEST` 为已审查的 `sha256:…` manifest digest，`IMAGE_PLATFORM` 为 `linux/arm64` 或 `linux/amd64`，使用 `bash scripts/export-base.sh IMAGE OUTPUT.tar.gz` 导出。
 脚本在导出前核对 digest、平台与来源 label；
 导出为已核对的不可变镜像 ID 建立唯一的 `grok-box-base:export-…` 临时 tag，保留导入时需要的仓库名称，结束时移除该临时 tag。用户已有 tag 保持不变。
 归档生成后再次核对 OCI manifest 内容及 digest，并以 Gitleaks 8.30.1 检查镜像 config 与每个独立层，后续层删除的文件也接受检查。
@@ -109,6 +119,6 @@ base 镜像就位后，到主仓库执行 `docker/build-arm64-box.sh` 构建薄�
 
 Git 排除运行配置、私钥和浏览器数据；Docker 构建上下文仅允许所需源码，CI 用真实 `COPY` 检查排除规则。Git 历史扫描与镜像扫描全量遮蔽匹配内容，不上传扫描报告或运行数据。
 
-`security/reviewed-image-materials.json` 登记公开发行包材料的精确路径、规则与完整文件 SHA-256，包括系统源码、测试向量和 Chromium 公开服务配置。三项同时匹配才可接受，内容改变需要重新审查；用户凭据没有例外。已有固定归档的 16 层已逐层检查，113 个扫描命中对应 40 个发行包文件，未确认用户私有凭据泄漏。
+`security/reviewed-image-materials.json` 登记公开发行包材料的精确路径、规则与完整文件 SHA-256，包括系统源码、测试向量和 Chromium 公开服务配置。三项同时匹配才可接受，内容改变需要重新审查；用户凭据没有例外。arm64 固定归档的 16 层和 amd64 固定归档的 17 层均已逐层检查。
 
 扫描覆盖 config 与层内普通文件；层内再次压缩的包、未知凭据格式和未被规则识别的内容不能据此宣称安全。浏览器 cookie/profile、用户数据卷和宿主账号目录始终属于运行数据，禁止用于镜像构建或发布。
