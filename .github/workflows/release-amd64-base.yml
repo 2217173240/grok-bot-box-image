@@ -1,0 +1,101 @@
+name: Release verified amd64 base
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Reviewed successful Build Linux image run
+        required: true
+        default: '37133856976'
+        type: string
+      source_revision:
+        description: Reviewed image source revision
+        required: true
+        default: 'd7e8cc180bf430bc647f36302ef09cd808b6796d'
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: release-base-d7e8cc1-amd64
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REVIEWED_RUN: ${{ inputs.run_id }}
+      SOURCE_REVISION: ${{ inputs.source_revision }}
+      RELEASE_TAG: base-d7e8cc1-amd64
+      ARCHIVE_FILE: grok-box-base-e53fd2e73fa9-linux-amd64.tar.gz
+      ARCHIVE_SHA256: 1e72ab6f0fbdd2ad3c69cbfe09274e6bc4bab076a90e9e21cff738e240f50453
+      IMAGE_REFERENCE: grok-box-base@sha256:e53fd2e73fa9257c6c197df32ef793f145545a063682c722cf7cb7e8ef53ade5
+    steps:
+      - name: Verify reviewed source run
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 2217173240/grok-bot-box-image
+          test "$REVIEWED_RUN" = 37133856976
+          test "$SOURCE_REVISION" = d7e8cc180bf430bc647f36302ef09cd808b6796d
+          mkdir -p .cache/release
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REVIEWED_RUN" > .cache/release/run.json
+          workflow_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-image.yml" --jq .id)
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg source "$SOURCE_REVISION" --argjson workflow "$workflow_id" \
+            '.repository.full_name == $repo and .head_repository.full_name == $repo and .head_sha == $source and .workflow_id == $workflow and .name == "Build Linux image" and .status == "completed" and .conclusion == "success"' \
+            .cache/release/run.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: verified-base-linux-amd64
+          path: .cache/release/artifact
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+      - uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4
+        with:
+          daemon-config: |
+            { "features": { "containerd-snapshotter": true } }
+      - name: Verify archive and import into empty Docker store
+        run: |
+          set -euo pipefail
+          test -z "$(docker image ls --all --quiet)"
+          source_archive=.cache/release/artifact/grok-box-base-linux-amd64.tar.gz
+          echo "$ARCHIVE_SHA256  $source_archive" | sha256sum --check -
+          jq -e '."containerimage.digest" == "sha256:e53fd2e73fa9257c6c197df32ef793f145545a063682c722cf7cb7e8ef53ade5"' .cache/release/artifact/metadata.json
+          docker image load --input "$source_archive"
+          docker image inspect "$IMAGE_REFERENCE" > .cache/release/loaded-image.json
+          jq -e --arg reference "$IMAGE_REFERENCE" --arg source "$SOURCE_REVISION" \
+            'length == 1 and (.[0] | .Os == "linux" and .Architecture == "amd64" and (.RepoDigests | index($reference) != null) and .Config.Labels["org.opencontainers.image.source"] == "https://github.com/2217173240/grok-bot-box-image" and .Config.Labels["org.opencontainers.image.revision"] == $source)' \
+            .cache/release/loaded-image.json
+          mv "$source_archive" ".cache/release/$ARCHIVE_FILE"
+          bytes=$(stat -c %s ".cache/release/$ARCHIVE_FILE")
+          jq -n --arg file "$ARCHIVE_FILE" --arg tag "$RELEASE_TAG" --arg sha "$ARCHIVE_SHA256" \
+            --arg reference "$IMAGE_REFERENCE" --arg source "$SOURCE_REVISION" --argjson bytes "$bytes" \
+            '{schemaVersion: 1, artifacts: [{id: "base-amd64", kind: "docker-image", file: $file, url: ("https://github.com/2217173240/grok-bot-box-image/releases/download/" + $tag + "/" + $file), bytes: $bytes, sha256: $sha, reference: $reference, platform: "linux/amd64", sourceRepository: "https://github.com/2217173240/grok-bot-box-image", sourceRevision: $source}]}' \
+            > .cache/release/result-manifest.json
+          cat .cache/release/result-manifest.json
+      - name: Publish reviewed archive or verify existing release
+        run: |
+          set -euo pipefail
+          archive=".cache/release/$ARCHIVE_FILE"
+          manifest=.cache/release/result-manifest.json
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > .cache/release/tag.json 2> .cache/release/tag-error.txt; then
+            test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$SOURCE_REVISION"
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > .cache/release/release.json
+            manifest_sha=$(sha256sum "$manifest" | cut -d ' ' -f 1)
+            jq -e --arg file "$ARCHIVE_FILE" --arg archive_digest "sha256:$ARCHIVE_SHA256" \
+              --arg manifest_digest "sha256:$manifest_sha" --argjson bytes "$(stat -c %s "$archive")" \
+              --argjson manifest_bytes "$(stat -c %s "$manifest")" \
+              '(.draft == false) and (.prerelease == false) and ([.assets[] | select(.name == $file and .size == $bytes and .digest == $archive_digest)] | length == 1) and ([.assets[] | select(.name == "result-manifest.json" and .size == $manifest_bytes and .digest == $manifest_digest)] | length == 1)' \
+              .cache/release/release.json
+          else
+            if ! grep -q 'HTTP 404' .cache/release/tag-error.txt; then
+              cat .cache/release/tag-error.txt >&2
+              exit 1
+            fi
+            gh release create "$RELEASE_TAG" "$archive" "$manifest" --target "$SOURCE_REVISION" \
+              --title 'Linux amd64 base image (d7e8cc1)' \
+              --notes "Built and scanned by https://github.com/$GITHUB_REPOSITORY/actions/runs/$REVIEWED_RUN. The archive SHA-256 and Linux amd64 digest, source labels, and empty-store Docker import were verified before publication."
+          fi
